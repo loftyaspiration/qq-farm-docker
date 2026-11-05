@@ -1,10 +1,13 @@
 import type { Socket } from 'socket.io-client'
+import { useStorage } from '@vueuse/core'
 import { defineStore } from 'pinia'
 import { io } from 'socket.io-client'
 import { computed, ref } from 'vue'
 import api, { getApiErrorMessage } from '@/api'
 import { useAccountStore } from '@/stores/account'
 import { gatewayPath } from '@/utils/gateway'
+
+const adminToken = useStorage('admin_token', '')
 
 // Define interfaces for better type checking
 interface DailyGift {
@@ -110,11 +113,12 @@ export const useStatusStore = defineStore('status', () => {
     if (socket)
       return socket
 
-    // 飞牛网关：/app/qq-farm-bot/socket.io；访问控制由飞牛网关负责，不再携带令牌
+    // 飞牛网关注入用户头；Docker 直连时用 admin_token 握手
     socket = io('/', {
       path: gatewayPath('/socket.io'),
       autoConnect: false,
       transports: ['websocket'],
+      auth: { token: adminToken.value || '' },
     })
 
     socket.on('connect', () => {

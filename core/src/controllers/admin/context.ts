@@ -9,6 +9,7 @@ export {};
  */
 
 export interface AdminContext {
+    tokens: Set<string>;
     app: Application | null;
     server: Server | null;
     io: SocketIOServer | null;
@@ -16,7 +17,9 @@ export interface AdminContext {
 }
 
 function createAdminContext(dataProvider: any): AdminContext {
+    const tokens = new Set<string>();
     return {
+        tokens,
         app: null,
         server: null,
         io: null,

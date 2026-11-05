@@ -3,6 +3,7 @@ import axios from 'axios'
 import { useToastStore } from '@/stores/toast'
 import { APP_BASE } from '@/utils/gateway'
 
+const tokenRef = useStorage('admin_token', '')
 const accountIdRef = useStorage('current_account_id', '')
 
 const api = axios.create({
@@ -36,6 +37,10 @@ export function getApiErrorMessage(error: unknown, fallback = '请求失败'): s
 }
 
 api.interceptors.request.use((config) => {
+  const token = tokenRef.value
+  if (token) {
+    config.headers['x-admin-token'] = token
+  }
   const accountId = accountIdRef.value
   if (accountId && !config.headers.has('x-account-id')) {
     config.headers.set('x-account-id', accountId)
@@ -74,7 +79,14 @@ api.interceptors.response.use((response) => {
   const skipToast = error.config?.skipErrorToast
 
   if (error.response) {
-    if (error.response.status === 403) {
+    if (error.response.status === 401) {
+      if (!window.location.pathname.includes('/login')) {
+        tokenRef.value = ''
+        window.location.href = `${APP_BASE}login`
+        toast.warning('登录已过期，请重新登录')
+      }
+    }
+    else if (error.response.status === 403) {
       if (!skipToast)
         toast.error(getApiErrorMessage(error, '没有访问权限'))
     }

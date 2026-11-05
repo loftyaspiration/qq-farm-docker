@@ -1,7 +1,8 @@
-import type { Request, Response } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import type { AdminContext } from './context';
 export {};
 
+const crypto = require('node:crypto');
 const store = require('../../models/store');
 const { normalizeAccountRef, resolveAccountId } = require('../../services/account-resolver');
 
@@ -17,6 +18,30 @@ function getClientIp(req: Request): string {
     }
     const address = req.ip || (req as any).connection?.remoteAddress || req.socket?.remoteAddress;
     return String(address || 'unknown').replace(/^::ffff:/, '');
+}
+
+interface AuthenticatedRequest extends Request {
+    adminToken?: string;
+}
+
+const issueToken = (): string => crypto.randomBytes(24).toString('hex');
+
+function createAuthRequired(ctx: AdminContext) {
+    return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+        // 飞牛网关已登录时直接放行；Docker 直连必须带 x-admin-token
+        const gatewayUser = getGatewayUserFromHeaders(req.headers as any);
+        if (gatewayUser.viaGateway) {
+            next();
+            return;
+        }
+        const token = String(req.headers['x-admin-token'] || '');
+        if (!token || !ctx.tokens || !ctx.tokens.has(token)) {
+            res.status(401).json({ ok: false, error: 'Unauthorized' });
+            return;
+        }
+        req.adminToken = token;
+        next();
+    };
 }
 
 interface GatewayUser {
@@ -136,6 +161,8 @@ function buildKnownFriendGidSettings(accountId: string): {
 
 module.exports = {
     getClientIp,
+    issueToken,
+    createAuthRequired,
     getGatewayUser,
     getGatewayUserFromHeaders,
     getAccountList,
