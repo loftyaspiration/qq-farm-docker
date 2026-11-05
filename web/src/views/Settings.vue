@@ -21,6 +21,8 @@ import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import { getPlatformClass, getPlatformLabel, useAccountStore } from '@/stores/account'
 import { useSettingStore } from '@/stores/setting'
 import { useStatusStore } from '@/stores/status'
+import { useNasUserStore } from '@/stores/nas-user'
+import { useUserStore } from '@/stores/user'
 import { fnosMoveIndex } from '@/utils/fnos-sort-order' // [fnos-fork]
 
 const fertilizerLandTypeOptions = [
@@ -37,6 +39,8 @@ const route = useRoute()
 const accountStore = useAccountStore()
 const settingStore = useSettingStore()
 const statusStore = useStatusStore()
+const userStore = useUserStore()
+const nasUserStore = useNasUserStore()
 
 type SettingsTab = 'account' | 'strategy' | 'automation' | 'fnos-coop' | 'fnos-alt' | 'system' // [fnos-fork] 新增 fnos-coop（大小号协作）、fnos-alt（活动设置）
 const storedTab = localStorage.getItem('settings-active-tab')
@@ -83,6 +87,26 @@ const modalConfig = ref({
   type: 'primary' as 'primary' | 'danger',
   isAlert: true,
 })
+
+const adminDisplayName = ref(userStore.username || 'admin')
+const savingDisplayName = ref(false)
+async function saveDisplayName() {
+  savingDisplayName.value = true
+  try {
+    const res = await userStore.updateUsername(adminDisplayName.value)
+    if (res.ok) {
+      await nasUserStore.fetchUser()
+      showAlert('管理员名称已修改')
+    }
+    else showAlert(res.error || '修改失败', 'danger')
+  }
+  catch (e: any) {
+    showAlert(getApiErrorMessage(e, '修改失败'), 'danger')
+  }
+  finally {
+    savingDisplayName.value = false
+  }
+}
 
 const oldPassword = ref('')
 const newPassword = ref('')
@@ -1514,6 +1538,14 @@ async function handleResetSystemConfig() {
           </div>
 
           <div class="farm-card rounded-2xl bg-white p-4 shadow-md dark:bg-gray-800">
+            <h4 class="mb-2 font-bold text-gray-900 dark:text-gray-100">管理员登录账号</h4>
+            <p class="mb-3 text-sm text-gray-500">修改 Web 后台左上角显示的管理员名称。</p>
+            <div class="mb-3 grid gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+              <BaseInput v-model="adminDisplayName" placeholder="管理员名称（2-20字）" />
+              <BaseButton variant="secondary" size="sm" :loading="savingDisplayName" @click="saveDisplayName">
+                保存名称
+              </BaseButton>
+            </div>
             <h4 class="mb-2 font-bold text-gray-900 dark:text-gray-100">管理员登录密码</h4>
             <p class="mb-3 text-sm text-gray-500">修改 Web 后台登录密码（Docker 直连模式生效）。</p>
             <div class="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
