@@ -64,17 +64,31 @@ function setupSocketIO(ctx: AdminContext): void {
         cors: {
             origin: '*',
             methods: ['GET', 'POST'],
-            allowedHeaders: ['x-account-id'],
+            allowedHeaders: ['x-account-id', 'x-admin-token'],
         },
     });
 
-    // 访问控制交给飞牛网关；这里只按网关 Header 做管理员限制
+    // 飞牛网关已登录时按网关 Header 限制管理员；Docker 直连必须带 Token
     ctx.io.use((socket: any, next: (err?: Error) => void) => {
         const user = getGatewayUserFromHeaders(socket.handshake.headers || {});
-        if (isAdminOnly() && !user.isAdmin) {
-            return next(new Error('仅飞牛管理员可以使用 QQ 农场'));
+        if (user.viaGateway) {
+            if (isAdminOnly() && !user.isAdmin) {
+                return next(new Error('仅飞牛管理员可以使用 QQ 农场'));
+            }
+            socket.data.gatewayUser = user;
+            return next();
         }
-        socket.data.gatewayUser = user;
+        const authToken = socket.handshake.auth && socket.handshake.auth.token
+            ? String(socket.handshake.auth.token)
+            : '';
+        const headerToken = socket.handshake.headers && socket.handshake.headers['x-admin-token']
+            ? String(socket.handshake.headers['x-admin-token'])
+            : '';
+        const token = authToken || headerToken;
+        if (!token || !ctx.tokens || !ctx.tokens.has(token)) {
+            return next(new Error('Unauthorized'));
+        }
+        socket.data.adminToken = token;
         return next();
     });
 

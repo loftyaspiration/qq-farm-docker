@@ -15,6 +15,7 @@ const { GATEWAY_PREFIX, stripGatewayPrefix, getListenSocketPath, isAdminOnly, is
 const { createModuleLogger } = require('../../services/logger');
 
 const { createAdminContext } = require('./context');
+const { mountAuthRoutes } = require('./auth-routes');
 const { mountSystemRoutes } = require('./system-routes');
 const { mountAccountRoutes } = require('./account-routes');
 const { mountFarmRoutes } = require('./farm-routes');
@@ -77,7 +78,7 @@ function startAdminServer(dataProvider: any): void {
         }
 
         res.header('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS, PUT');
-        res.header('Access-Control-Allow-Headers', 'Content-Type, x-account-id, x-proxy-api-key, x-proxy-api-url, x-proxy-app-id');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, x-account-id, x-admin-token, x-proxy-api-key, x-proxy-api-url, x-proxy-app-id');
         res.header('Access-Control-Allow-Credentials', 'true');
         res.header('Access-Control-Max-Age', '86400');
 
@@ -94,7 +95,8 @@ function startAdminServer(dataProvider: any): void {
     }
     app.use('/game-config', express.static(getResourcePath('gameConfig')));
 
-    // Mount route modules
+    // Mount route modules：鉴权路由先注册，后续 /api/* 除登录/版本外都要 Token
+    mountAuthRoutes(app, ctx);
     mountSystemRoutes(app, ctx);
     mountWxLoginRoutes(app, ctx);
     mountQqLoginRoutes(app, ctx);
