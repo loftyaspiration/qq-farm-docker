@@ -9,6 +9,7 @@ core/client.js
 
 # Runtime data (contains user credentials and logs)
 core/data/
+/data/
 
 # Debug/test scripts
 core/scripts/
