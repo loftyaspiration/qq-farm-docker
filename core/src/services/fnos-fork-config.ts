@@ -17,7 +17,7 @@ export interface FnosForkConfigs {
         priorityGid: number; priorityName: string; priorityConfigured: boolean;
         talentId: number; allowRobots: boolean; autoWork: boolean; workType: number;
     };
-    daily: { autoClaim: boolean; autoExchangeSeed: boolean; seedExchange: Array<{ id: number; enabled: boolean }> }; // [fnos-fork] 需求 27 种子列表
+    daily: { autoClaim: boolean; claimIntervalMinHours: number; claimIntervalMaxHours: number; autoExchangeSeed: boolean; seedExchange: Array<{ id: number; enabled: boolean }> }; // [fnos-fork] 需求 27 种子列表；领取间隔可配范围
     /** [fnos-fork] 2026-10-28 奶茶自动制作 / 自动领工资 */
     extra: { autoCraft: boolean; craftGoldenCheese: boolean; autoClaimWages: boolean; autoUpgradeShop: boolean }; // [fnos-fork] 需求 27 店铺自动升级
     /** [fnos-fork] 2026-10-28 图鉴奖励自动领取 / 自动完成图鉴 */
@@ -112,7 +112,10 @@ function describeDaily(daily: FnosForkConfigs['daily']): string {
     const exchange = !daily.autoExchangeSeed ? '森野种子每日兑换未启用'
         : names.length === 1 && names[0] === '森野黄金芽种子' ? '森野黄金芽种子每日兑换已启用（按最大数量，会消耗兑换商店货币）'
             : names.length ? `森野种子每日兑换已启用（按顺序：${names.join(' → ')}，按最大数量，会消耗兑换商店货币）` : '森野种子每日兑换已启用，但没有勾选种子';
-    return `奶茶收益每小时自动领取${daily.autoClaim ? '已启用' : '未启用'}；${exchange}`;
+    const min = Math.max(1, Math.min(24, Math.round(Number(daily.claimIntervalMinHours) || 6)));
+    const max = Math.max(min, Math.min(24, Math.round(Number(daily.claimIntervalMaxHours) || min)));
+    const intervalText = min === max ? `每 ${min} 小时` : `每 ${min}-${max} 小时随机`;
+    return `奶茶收益${intervalText}自动领取${daily.autoClaim ? '已启用' : '未启用'}；${exchange}`;
 }
 
 function describeExtra(extra: FnosForkConfigs['extra']): string {

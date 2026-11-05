@@ -1,6 +1,6 @@
 export {};
 /**
- * [fnos-fork] 奶茶活动：收益每小时自动领取、兑换商店每天兑换「森野黄金芽种子」（本 fork 新增，上游没有）
+ * [fnos-fork] 奶茶活动：收益按可配置间隔自动领取（默认 6 小时）、兑换商店每天兑换「森野黄金芽种子」（本 fork 新增，上游没有）
  *
  * 只复用上游已实现并核对过的协议（services/milk-tea.ts、proto/milk-tea.proto）：
  * - 领取收益：ActivityService.Operate，活动 2026110101，操作号 59 milk_tea_claim_cashier
@@ -26,7 +26,8 @@ export {};
  */
 
 const SEED_NAME = '森野黄金芽种子';
-const CLAIM_INTERVAL_MS = 60 * 60 * 1000;
+// [fnos-fork] 长周期 setInterval 在部分运行环境里不可靠：改为每分钟唤醒一次，由 claimNextAtMs 控制真正的领取间隔（可在设置里配 最小/最大 小时）。
+const CHECK_INTERVAL_MS = 60 * 1000;
 const FIRST_TICK_DELAY_MS = 5 * 1000;
 const FAIL_RETRY_MS = 60 * 60 * 1000;
 
@@ -48,19 +49,54 @@ const MAX_OWN = 9999; // 物品表 max_own
 export interface FnosSeedExchangeEntry { id: number; enabled: boolean }
 
 export interface FnosMilkTeaDailyConfig {
-    /** 奶茶收益每小时自动领取 */
+    /** 奶茶收益自动领取开关 */
     autoClaim: boolean;
+    /** 领取间隔最小值（小时，1-24），与最大值组成区间，每次在区间内随机取一个间隔 */
+    claimIntervalMinHours: number;
+    /** 领取间隔最大值（小时，1-24），不能小于最小值；等于最小值时就是固定间隔 */
+    claimIntervalMaxHours: number;
     /** 兑换商店每天自动兑换勾选的森野种子（2026-10-30 起按最大数量；字段名沿用旧版） */
     autoExchangeSeed: boolean;
     /** [fnos-fork] 需求 27：8 种森野种子的兑换顺序与是否勾选（总是 8 项） */
     seedExchange: FnosSeedExchangeEntry[];
 }
 
+export const CLAIM_INTERVAL_MIN_HOURS = 1;
+export const CLAIM_INTERVAL_MAX_HOURS = 24;
+const DEFAULT_CLAIM_INTERVAL_HOURS = 6;
+
+/** 把小时数规整到 1-24 的整数；非法值回退。 */
+function normalizeIntervalHours(value: unknown, fallback: number): number {
+    const n = Math.round(Number(value));
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(CLAIM_INTERVAL_MIN_HOURS, Math.min(CLAIM_INTERVAL_MAX_HOURS, n));
+}
+
+/** 读取领取区间并保证 min <= max。 */
+export function claimIntervalHours(cfg: Pick<FnosMilkTeaDailyConfig, 'claimIntervalMinHours' | 'claimIntervalMaxHours'>): { min: number; max: number } {
+    const min = normalizeIntervalHours(cfg.claimIntervalMinHours, DEFAULT_CLAIM_INTERVAL_HOURS);
+    const max = Math.max(min, normalizeIntervalHours(cfg.claimIntervalMaxHours, min));
+    return { min, max };
+}
+
+/** 本次领取后到下一次领取的间隔：min=max 时固定，否则在区间内随机（按分钟取整）。 */
+function pickClaimIntervalMs(cfg: FnosMilkTeaDailyConfig): number {
+    const { min, max } = claimIntervalHours(cfg);
+    const hours = min === max ? min : min + Math.random() * (max - min);
+    return Math.max(1, Math.round(hours * 60)) * 60 * 1000;
+}
+
 function defaultSeedExchange(): FnosSeedExchangeEntry[] {
     return FNOS_EXCHANGE_SEEDS.map(v => ({ id: v.id, enabled: v.id === GOLDEN_SEED_ID }));
 }
 
-const DEFAULT_FNOS_MILK_TEA_DAILY: FnosMilkTeaDailyConfig = { autoClaim: false, autoExchangeSeed: false, seedExchange: defaultSeedExchange() };
+const DEFAULT_FNOS_MILK_TEA_DAILY: FnosMilkTeaDailyConfig = {
+    autoClaim: false,
+    claimIntervalMinHours: DEFAULT_CLAIM_INTERVAL_HOURS,
+    claimIntervalMaxHours: DEFAULT_CLAIM_INTERVAL_HOURS,
+    autoExchangeSeed: false,
+    seedExchange: defaultSeedExchange(),
+};
 
 /** 规整种子列表：只保留 8 种已知种子、去重、保持给定顺序，缺的按默认顺序补在后面（不勾选）。 */
 function normalizeSeedExchange(input: unknown, fallback?: FnosSeedExchangeEntry[]): FnosSeedExchangeEntry[] {
@@ -78,12 +114,25 @@ function normalizeSeedExchange(input: unknown, fallback?: FnosSeedExchangeEntry[
 
 function normalizeFnosMilkTeaDaily(input: unknown, fallback: Partial<FnosMilkTeaDailyConfig> = DEFAULT_FNOS_MILK_TEA_DAILY): FnosMilkTeaDailyConfig {
     const base = { ...DEFAULT_FNOS_MILK_TEA_DAILY, ...(fallback || {}) };
+    const baseInterval = claimIntervalHours(base);
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
-        return { autoClaim: !!base.autoClaim, autoExchangeSeed: !!base.autoExchangeSeed, seedExchange: normalizeSeedExchange(base.seedExchange) };
+        return {
+            autoClaim: !!base.autoClaim,
+            claimIntervalMinHours: baseInterval.min,
+            claimIntervalMaxHours: baseInterval.max,
+            autoExchangeSeed: !!base.autoExchangeSeed,
+            seedExchange: normalizeSeedExchange(base.seedExchange),
+        };
     }
     const src = input as Record<string, any>;
+    const interval = claimIntervalHours({
+        claimIntervalMinHours: src.claimIntervalMinHours !== undefined ? src.claimIntervalMinHours : baseInterval.min,
+        claimIntervalMaxHours: src.claimIntervalMaxHours !== undefined ? src.claimIntervalMaxHours : baseInterval.max,
+    });
     return {
         autoClaim: src.autoClaim !== undefined ? !!src.autoClaim : !!base.autoClaim,
+        claimIntervalMinHours: interval.min,
+        claimIntervalMaxHours: interval.max,
         autoExchangeSeed: src.autoExchangeSeed !== undefined ? !!src.autoExchangeSeed : !!base.autoExchangeSeed,
         seedExchange: normalizeSeedExchange(src.seedExchange, base.seedExchange),
     };
@@ -200,13 +249,18 @@ function logOnce(channel: string, tag: string, message: string, meta: any): void
 async function runClaim(milkTea: any, nowMs: number): Promise<boolean> {
     const { log, logWarn } = require('../utils/utils');
     const meta = { module: 'activity', event: '奶茶收益领取' };
-    claimNextAtMs = nowMs + CLAIM_INTERVAL_MS;
+    const cfg = readConfig();
+    const { min, max } = claimIntervalHours(cfg);
+    const intervalMs = pickClaimIntervalMs(cfg);
+    claimNextAtMs = nowMs + intervalMs;
+    const rangeText = min === max ? `每 ${min} 小时一次` : `每 ${min}-${max} 小时随机一次（本次约 ${Math.round(intervalMs / 3600000 * 10) / 10} 小时）`;
+    log('奶茶收益', `开始检查奶茶收益（${rangeText}）`, { ...meta, result: 'check', minHours: min, maxHours: max });
     let state: any;
     try {
         // 'upgrade' 页只读店铺（操作号 55），不额外读工坊
         state = await milkTea.getMilkTeaActivity('upgrade');
     } catch (e: any) {
-        logOnce('claim', '奶茶收益', `奶茶收益领取跳过：读取奶茶店失败（${e.message}），1 小时后再试`, { ...meta, result: 'error' });
+        logOnce('claim', '奶茶收益', `奶茶收益领取跳过：读取奶茶店失败（${e.message}），下次检查再试`, { ...meta, result: 'error' });
         return false;
     }
     if (!state?.active) { logOnce('claim', '奶茶收益', '奶茶收益领取跳过：奶茶活动未开放或已结束', { ...meta, result: 'skip' }); return false; }
@@ -220,7 +274,7 @@ async function runClaim(milkTea: any, nowMs: number): Promise<boolean> {
         log('奶茶收益', `奶茶收益已领取：${describeItems(got)}`, { ...meta, result: 'ok' });
         return true;
     } catch (e: any) {
-        logWarn('奶茶收益', `奶茶收益领取失败：${e.message}，1 小时后再试`, { ...meta, result: 'error' });
+        logWarn('奶茶收益', `奶茶收益领取失败：${e.message}，下次检查再试`, { ...meta, result: 'error' });
         return false;
     }
 }
@@ -306,17 +360,26 @@ let lastTickErrorLogAt = 0;
 /** 登录完成后由 worker 调用；任务挂在 workerScheduler 上，停号时随 clearAll 清理。 */
 function startFnosMilkTeaDaily(scheduler: any, runExclusive: (name: string, fn: () => Promise<any>) => Promise<any>): void {
     resetFnosMilkTeaDailyRuntime();
-    const tick = () => runExclusive('fnos_milk_tea_daily', () => runMilkTeaDailyTick()).catch((e: any) => {
+    let checkCount = 0;
+    const tick = () => {
+        checkCount += 1;
+        if (checkCount <= 3) {
+            const leftMs = claimNextAtMs - Date.now();
+            const state = leftMs <= 0 ? '可领取' : `距下次领取约 ${Math.ceil(leftMs / 60000)} 分钟`;
+            try { require('../utils/utils').log('奶茶收益', `定时检查 #${checkCount}：${state}`, { module: 'activity', event: '奶茶收益领取', result: 'check' }); } catch { /* ignore */ }
+        }
+        return runExclusive('fnos_milk_tea_daily', () => runMilkTeaDailyTick()).catch((e: any) => {
         if (Date.now() - lastTickErrorLogAt > 30 * 60 * 1000) {
             lastTickErrorLogAt = Date.now();
             try { require('../utils/utils').logWarn('奶茶收益', `奶茶收益/兑换检查出错：${e && e.message ? e.message : e}`, { module: 'activity', event: '奶茶收益领取', result: 'error' }); } catch { /* ignore */ }
         }
         return null;
     });
+    };
     activeScheduler = scheduler;
     activeTick = tick;
     scheduler.setTimeoutTask('fnos_milk_tea_daily_first', FIRST_TICK_DELAY_MS, tick);
-    scheduler.setIntervalTask('fnos_milk_tea_daily', CLAIM_INTERVAL_MS, tick);
+    scheduler.setIntervalTask('fnos_milk_tea_daily', CHECK_INTERVAL_MS, tick);
 }
 
 /** 保存设置后：清掉今日标记与退避，约 5 秒后跑一次。 */

@@ -11,7 +11,7 @@ export {};
  * 奶茶活动自动雇佣（2026.10.21.2 起含优先雇佣人，与大小号解耦）：
  *   GET  /api/fnos/milk-tea-auto-hire     读取设置 + 可选时长/职业
  *   POST /api/fnos/milk-tea-auto-hire     保存
- * 奶茶收益每小时自动领取 / 兑换商店每日兑换森野黄金芽种子：
+ * 奶茶收益按可配置间隔自动领取 / 兑换商店每日兑换森野黄金芽种子：
  *   GET  /api/fnos/milk-tea-daily         读取
  *   POST /api/fnos/milk-tea-daily         保存
  * 奶茶自动制作（可排除金露云酪）/ 自动领取工资（2026-10-28）：

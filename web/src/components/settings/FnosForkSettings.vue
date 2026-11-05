@@ -3,7 +3,7 @@
  * [fnos-fork] 本 fork 新增的按账号设置（上游没有）：
  * - 大号/小号：小号成熟作物留给大号偷，大号偷过才自动收获
  * - 奶茶活动自动雇佣：可选「优先雇佣人」（好友，2026-10-27 起可多选并排序），统一的雇佣时长与职业可选或随机；2026.10.21.2 起与大小号解耦
- * - 奶茶收益每小时自动领取、兑换商店每日兑换森野黄金芽种子（2026.10.21）
+ * - 奶茶收益按可配置间隔自动领取、兑换商店每日兑换森野黄金芽种子（2026.10.21）
  * - 奶茶自动制作（可排除金露云酪）、自动领取工资；图鉴奖励自动领取、自动完成图鉴（2026-10-28）
  * - 需求 27（2026-10-30）：店铺自动升级；森野种子自动兑换（8 种可勾选、可拖动排序，按最大数量）
  * 所在栏目（2026.10.21.3 起拆成两个独立栏目，都不在「自动控制」里）：
@@ -38,6 +38,13 @@ const tea = ref<MilkTeaAutoHire>({ enabled: false, durationId: 0, priorityFriend
 const workOptions = ref<Array<{ workType: number, name: string, description: string, risky: boolean }>>([])
 const daily = ref(fnosNormalizeMilkTeaDaily(null)) // [fnos-fork] 需求 27：含 8 种森野种子的勾选与顺序
 const seedHint = computed(() => fnosSeedExchangeHint(daily.value))
+const claimIntervalHint = computed(() => {
+  const min = Number(daily.value.claimIntervalMinHours) || 6
+  const max = Math.max(min, Number(daily.value.claimIntervalMaxHours) || min)
+  return min === max
+    ? `当前：固定每 ${min} 小时领取一次。`
+    : `当前：每次在 ${min}-${max} 小时之间随机取一个间隔。`
+})
 function moveSeed(from: number, to: number) {
   daily.value.seedExchange = fnosMoveSeedExchange(daily.value.seedExchange, from, to)
 }
@@ -656,7 +663,7 @@ onMounted(() => {
               奶茶收益与兑换
             </h4>
             <p class="mt-0.5 text-xs text-gray-500 leading-relaxed dark:text-gray-400">
-              账号运行时自动领取奶茶店收益、每天兑换一次兑换商店里勾选的森野种子（按最大数量）。保存后约 5 秒先执行一次。
+              账号运行时自动领取奶茶店收益（领取间隔可在下面自定义最小/最大小时数）、每天兑换一次兑换商店里勾选的森野种子（按最大数量）。保存后约 5 秒先执行一次。
             </p>
           </div>
         </div>
@@ -666,7 +673,33 @@ onMounted(() => {
         </div>
         <div v-else class="fnos-fork-card__body">
           <div class="fnos-setting-item">
-            <BaseSwitch v-model="daily.autoClaim" label="奶茶收益每小时自动领取" />
+            <BaseSwitch v-model="daily.autoClaim" label="奶茶收益自动领取（间隔可自定义）" />
+          </div>
+          <div v-if="daily.autoClaim" class="flex flex-col gap-2 border border-gray-100 rounded-lg p-3 dark:border-gray-700/60" data-testid="fnos-claim-interval-range">
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              领取间隔范围（小时，1-24）：最小值与最大值相等时按固定间隔；不相等时每次在区间内随机取。
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+              <BaseInput
+                v-model="daily.claimIntervalMinHours"
+                type="number"
+                label="最小间隔（小时）"
+                :min="1"
+                :max="24"
+                :step="1"
+              />
+              <BaseInput
+                v-model="daily.claimIntervalMaxHours"
+                type="number"
+                label="最大间隔（小时）"
+                :min="1"
+                :max="24"
+                :step="1"
+              />
+            </div>
+            <p class="fnos-hint text-gray-500 dark:text-gray-400">
+              {{ claimIntervalHint }}
+            </p>
           </div>
           <div class="fnos-setting-item">
             <BaseSwitch v-model="daily.autoExchangeSeed" label="森野种子自动兑换（按最大数量）" />

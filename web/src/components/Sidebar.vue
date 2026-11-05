@@ -97,7 +97,7 @@ function openRemarkModal(acc: any) {
 onMounted(() => {
   accountStore.fetchAccounts()
   checkConnection()
-  // 当前飞牛用户（访问控制由飞牛统一网关负责）
+  // 当前ASP（访问控制由飞牛统一网关负责）
   nasUserStore.fetchUser()
 })
 
@@ -322,7 +322,7 @@ watch(isSidebarCollapsed, closeFlyouts)
         <template #trigger>
           <div
             class="sidebar-control w-full flex items-center gap-3 overflow-hidden px-3 py-2.5"
-            :aria-label="isSidebarCollapsed ? `飞牛用户：${nasUserStore.user?.username || '飞牛用户'}` : undefined"
+            :aria-label="isSidebarCollapsed ? `ASP：${nasUserStore.user?.username || 'ASP'}` : undefined"
           >
             <div class="farm-avatar-ring relative h-9 w-9 shrink-0 overflow-hidden rounded-full shadow-md" style="background: var(--ui-primary-fill); padding: 2px;">
               <div class="h-full w-full flex items-center justify-center overflow-hidden rounded-full bg-gray-200 dark:bg-gray-600">
@@ -334,18 +334,18 @@ watch(isSidebarCollapsed, closeFlyouts)
             </div>
             <div v-show="!isSidebarCollapsed" class="min-w-0 flex flex-col items-start">
               <span class="font-body w-full truncate text-left text-sm font-medium">
-                {{ nasUserStore.user?.username || '飞牛用户' }}
+                {{ nasUserStore.user?.username || 'ASP' }}
               </span>
               <div class="mt-0.5 flex items-center gap-1.5">
                 <span class="admin-badge rounded-lg px-1.5 py-0.2 text-[10px] leading-tight font-medium">
-                  {{ nasUserStore.user?.isAdmin === false ? '飞牛用户' : '飞牛管理员' }}
+                  {{ nasUserStore.user?.isAdmin === false ? 'ASP' : 'ASP 管理员' }}
                 </span>
               </div>
             </div>
           </div>
         </template>
         <div class="sidebar-tooltip-content">
-          <strong>{{ nasUserStore.user?.username || '飞牛用户' }}</strong>
+          <strong>{{ nasUserStore.user?.username || 'ASP' }}</strong>
           <span>已通过飞牛登录</span>
         </div>
       </NTooltip>

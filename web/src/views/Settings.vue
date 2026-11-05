@@ -149,7 +149,8 @@ onMounted(async () => {
 
 function openSettings(account: any) {
   accountStore.selectAccount(account.id)
-  router.push('/settings')
+  // [fnos-fork] 原来只 push('/settings')，在设置页点击时等于没反应；改为直接进该账号的「策略设置」页
+  router.push({ path: '/settings', query: { ...route.query, tab: 'strategy' } })
 }
 
 function openAddModal() {
@@ -1538,7 +1539,7 @@ async function handleResetSystemConfig() {
                         {{ getPlatformLabel(acc.platform) }}
                       </span>
                       <span class="truncate text-xs text-gray-500 sm:text-sm">
-                        {{ acc.uin || '未绑定' }}
+                        {{ acc.uin || (acc.platform === 'wx' ? '微信账号' : '未绑定') }}
                       </span>
                     </div>
                   </div>

@@ -43,7 +43,15 @@ export function fnosCraftHint(cfg: FnosMilkTeaExtra): string {
 // ============ [fnos-fork] 2026-10-30 需求 27：森野种子自动兑换（按最大数量，可多选、可排序） ============
 
 export interface FnosSeedExchangeEntry { id: number, enabled: boolean }
-export interface FnosMilkTeaDaily { autoClaim: boolean, autoExchangeSeed: boolean, seedExchange: FnosSeedExchangeEntry[] }
+export interface FnosMilkTeaDaily {
+  autoClaim: boolean
+  claimIntervalMinHours: number
+  claimIntervalMaxHours: number
+  autoExchangeSeed: boolean
+  seedExchange: FnosSeedExchangeEntry[]
+}
+export const FNOS_CLAIM_INTERVAL_MIN_HOURS = 1
+export const FNOS_CLAIM_INTERVAL_MAX_HOURS = 24
 
 /** 8 种森野种子（id 来自官方 ItemInfo.json），默认顺序与后端 FNOS_EXCHANGE_SEEDS 一致。 */
 export const FNOS_EXCHANGE_SEEDS: ReadonlyArray<{ id: number, name: string }> = [
@@ -81,11 +89,22 @@ export function fnosNormalizeSeedExchange(input: unknown): FnosSeedExchangeEntry
 
 export function fnosNormalizeMilkTeaDaily(input: unknown): FnosMilkTeaDaily {
   const src = input && typeof input === 'object' ? input as Record<string, any> : {}
+  const min = clampIntervalHours(src.claimIntervalMinHours, 6)
+  const max = Math.max(min, clampIntervalHours(src.claimIntervalMaxHours, min))
   return {
     autoClaim: bool(src, 'autoClaim', false),
+    claimIntervalMinHours: min,
+    claimIntervalMaxHours: max,
     autoExchangeSeed: bool(src, 'autoExchangeSeed', false),
     seedExchange: fnosNormalizeSeedExchange(src.seedExchange),
   }
+}
+
+function clampIntervalHours(value: unknown, fallback: number): number {
+  const n = Math.round(Number(value))
+  if (!Number.isFinite(n))
+    return fallback
+  return Math.max(FNOS_CLAIM_INTERVAL_MIN_HOURS, Math.min(FNOS_CLAIM_INTERVAL_MAX_HOURS, n))
 }
 
 /** 移动列表项（拖动或上下按钮），返回新数组。 */

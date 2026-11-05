@@ -1,0 +1,11 @@
+.git
+node_modules
+core/node_modules
+web/node_modules
+core/data
+core/*.log
+data
+docs
+fnos
+tools
+*.tar.gz
