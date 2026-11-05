@@ -84,6 +84,36 @@ const modalConfig = ref({
   isAlert: true,
 })
 
+const oldPassword = ref('')
+const newPassword = ref('')
+const changingPassword = ref(false)
+async function changeAdminPassword() {
+  if (!oldPassword.value || !newPassword.value) {
+    showAlert('请输入旧密码和新密码', 'danger')
+    return
+  }
+  if (newPassword.value.length < 6) {
+    showAlert('新密码至少 6 位', 'danger')
+    return
+  }
+  changingPassword.value = true
+  try {
+    await api.post('/api/user/change-password', {
+      oldPassword: oldPassword.value,
+      newPassword: newPassword.value,
+    })
+    oldPassword.value = ''
+    newPassword.value = ''
+    showAlert('管理员密码已修改')
+  }
+  catch (e: any) {
+    showAlert(getApiErrorMessage(e, '修改密码失败'), 'danger')
+  }
+  finally {
+    changingPassword.value = false
+  }
+}
+
 function showAlert(message: string, type: 'primary' | 'danger' = 'primary') {
   modalConfig.value = {
     title: type === 'danger' ? '错误' : '提示',
@@ -1479,6 +1509,18 @@ async function handleResetSystemConfig() {
               >
                 <span class="i-carbon-add mr-2" />
                 添加账号
+              </BaseButton>
+            </div>
+          </div>
+
+          <div class="farm-card rounded-2xl bg-white p-4 shadow-md dark:bg-gray-800">
+            <h4 class="mb-2 font-bold text-gray-900 dark:text-gray-100">管理员登录密码</h4>
+            <p class="mb-3 text-sm text-gray-500">修改 Web 后台登录密码（Docker 直连模式生效）。</p>
+            <div class="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <BaseInput v-model="oldPassword" type="password" placeholder="旧密码" />
+              <BaseInput v-model="newPassword" type="password" placeholder="新密码（至少6位）" />
+              <BaseButton variant="primary" size="sm" :loading="changingPassword" @click="changeAdminPassword">
+                修改密码
               </BaseButton>
             </div>
           </div>
