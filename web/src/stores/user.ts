@@ -78,6 +78,13 @@ export const useUserStore = defineStore('user', () => {
     return res.data
   }
 
+  async function updateUsername(newUsername: string) {
+    const res = await api.post('/api/user/update-profile', { username: newUsername })
+    if (res.data.ok && res.data.data)
+      userInfo.value = { ...(userInfo.value || { role: 'admin' }), ...res.data.data }
+    return res.data
+  }
+
   return {
     token,
     userInfo,
@@ -88,5 +95,6 @@ export const useUserStore = defineStore('user', () => {
     logout,
     fetchUserInfo,
     changePassword,
+    updateUsername,
   }
 })

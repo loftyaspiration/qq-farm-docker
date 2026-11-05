@@ -64,6 +64,12 @@ function mountAuthRoutes(app: Application, ctx: AdminContext): void {
         return res.json(result);
     });
 
+    app.post('/api/user/update-profile', authRequired, (req: Request, res: Response) => {
+        const { username } = req.body || {};
+        const result = adminStore.updateUsername(String(username || ''));
+        return res.json(result);
+    });
+
     app.use('/api', (req: Request, res: Response, next: any) => {
         if (req.path === '/login' || req.path === '/game-version') return next();
         return authRequired(req, res, next);

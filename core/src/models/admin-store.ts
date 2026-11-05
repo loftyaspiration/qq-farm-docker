@@ -93,6 +93,15 @@ function changePassword(oldPassword: string, newPassword: string): { ok: boolean
     return { ok: true, message: '密码修改成功' };
 }
 
+function updateUsername(newUsername: string): { ok: boolean; error?: string; message?: string; data?: any } {
+    const current = loadAdmin();
+    const name = String(newUsername || '').trim();
+    if (name.length < 2 || name.length > 20) return { ok: false, error: '用户名长度需为 2-20 个字符' };
+    current.username = name;
+    saveAdmin();
+    return { ok: true, message: '用户名已修改', data: getAdminInfo() };
+}
+
 loadAdmin();
 
-module.exports = { getAdminInfo, validateAdmin, changePassword };
+module.exports = { getAdminInfo, validateAdmin, changePassword, updateUsername };
