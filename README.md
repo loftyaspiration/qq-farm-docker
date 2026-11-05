@@ -2,7 +2,7 @@
 
 QQ 农场助手的通用 **Docker / 群晖 NAS** 版本，基于 [Maksim-venus/qq-farm-bot-fnos](https://github.com/Maksim-venus/qq-farm-bot-fnos)（飞牛 fnOS 原生 fork）继续改造。
 
-上游链：[liyangpengs/qq-farm-bot](https://github.com/liyangpengs/qq-farm-bot) → Maksim 飞牛 fork → 本仓库。核心玩法来自上游；飞牛原生适配与额外玩法来自 Maksim；本仓库主要补了 Docker 打包、品牌文案和少量配置项。
+上游链：[liyangpengs/qq-farm-bot](https://github.com/liyangpengs/qq-farm-bot) → Maksim 飞牛 fork → 本仓库。核心玩法来自上游；飞牛原生适配与额外玩法来自 Maksim；本仓库主要补了 Docker 打包和少量配置项。
 
 - **Docker 运行**：根目录 `Dockerfile` + `docker-compose.yml`，Node 22 三段构建，直接监听 TCP `3007`，不依赖飞牛网关 / Unix Socket。
 - **数据持久化**：`./data:/app/core/data`，账号、日志、配置都在宿主机 `data/` 目录，重建镜像不丢。
@@ -12,9 +12,9 @@ QQ 农场助手的通用 **Docker / 群晖 NAS** 版本，基于 [Maksim-venus/q
   - 奶茶收益自动领取间隔可配置：最小 1 小时、最大 24 小时，默认 6 小时。
   - 账号设置入口修复，uin 显示为「微信账号」。
 
-## 额外功能
 
-以下功能为本 fork 新增。设置类功能**按账号分别设置，默认关闭**。
+
+设置类功能**按账号分别设置，默认关闭**。
 
 「设置 → 大小号协作」：
 
