@@ -338,7 +338,7 @@ watch(isSidebarCollapsed, closeFlyouts)
               </span>
               <div class="mt-0.5 flex items-center gap-1.5">
                 <span class="admin-badge rounded-lg px-1.5 py-0.2 text-[10px] leading-tight font-medium">
-                  {{ nasUserStore.user?.isAdmin === false ? 'ASP' : 'ASP 管理员' }}
+                  管理员
                 </span>
               </div>
             </div>
