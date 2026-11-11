@@ -1,8 +1,8 @@
 export {};
-const sharedState = require('./shared-state');
 const globalConfig = require('./global-config');
 const accountConfig = require('./account-config');
 const accounts = require('./accounts');
+const wxCredentials = require('./wx-credentials');
 
 module.exports = {
     // Account config
@@ -57,6 +57,11 @@ module.exports = {
     getAccounts: accounts.getAccounts,
     addOrUpdateAccount: accounts.addOrUpdateAccount,
     deleteAccount: accounts.deleteAccount,
+
+    // WeChat persistent login credentials
+    getWxCredential: wxCredentials.getWxCredential,
+    saveWxCredential: wxCredentials.saveWxCredential,
+    deleteWxCredential: wxCredentials.deleteWxCredential,
 
     // System config
     getSystemConfig: globalConfig.getSystemConfig,

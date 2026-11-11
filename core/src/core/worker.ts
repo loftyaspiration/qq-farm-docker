@@ -6,7 +6,7 @@ const { parentPort, workerData } = require('node:worker_threads');
 
 const { CONFIG, updateRuntimeConfig } = require('../config/config');
 const { getLevelExpProgress, loadConfigs } = require('../config/gameConfig');
-const { getAutomation, getPreferredSeed, getConfigSnapshot, applyConfigSnapshot } = require('../models/store');
+const { getAutomation, getPreferredSeed, getConfigSnapshot, applyConfigSnapshot, addOrUpdateAccount } = require('../models/store');
 const { checkAndClaimEmails } = require('../services/email');
 const { getEmailDailyState } = require('../services/email');
 const { checkFarm, startFarmCheckLoop, stopFarmCheckLoop, refreshFarmCheckLoop, getLandsDetail, getAvailableSeeds, purchaseSeed, runFarmOperation, runFertilizerByConfig, fertilizeOwnLand } = require('../services/farm');
@@ -17,6 +17,7 @@ const { autoBuyFertilizer, checkAndBuyFertilizerBoth, buyFreeGifts, getFreeGiftD
 const { performDailyMonthCardGift, getMonthCardDailyState } = require('../services/monthcard');
 const { performDailyVipGift, getVipDailyState } = require('../services/qqvip');
 const { runExclusiveAutomationTask } = require('../services/automation-lock');
+const { issuePersistentWxCode } = require('../services/wx-login/persistent-code');
 const { createScheduler, getSchedulerRegistrySnapshot } = require('../services/scheduler');
 const { checkDailyShareStatus, getShareDailyState } = require('../services/share');
 const { refreshActivityWindows } = require('../services/activity-windows');
@@ -610,6 +611,21 @@ async function startBot(config: any): Promise<void> {
     networkEvents.on('disconnected', onDisconnected);
     networkEvents.on('kickout', onKickout);
 
+    let effectiveCode = code;
+    if (platform === 'wx') {
+        const accountId = process.env.FARM_ACCOUNT_ID || '';
+        try {
+            const persistent = await issuePersistentWxCode(accountId);
+            if (persistent?.code) {
+                log('系统', '已通过持久微信登录缓冲换取新的一次性 Code');
+                addOrUpdateAccount({ id: accountId, code: persistent.code });
+                effectiveCode = persistent.code;
+            }
+        } catch (error: any) {
+            logWarn('系统', `持久微信登录缓冲暂不可用，将尝试当前 Code：${error.message}`);
+        }
+    }
+
     const generation = runtimeGeneration;
     const canContinueLogin = (): boolean => isRunning && !shutdownStarted && generation === runtimeGeneration;
     const onLoginSuccess = async (): Promise<void> => {
@@ -701,7 +717,7 @@ async function startBot(config: any): Promise<void> {
         await runExclusiveAutomationTask('startup_sequence', () => runStartupSequence(canContinueLogin));
     };
 
-    connect(code, onLoginSuccess);
+    connect(effectiveCode, onLoginSuccess);
 
     // 启动定时状态同步
     workerScheduler.setIntervalTask('status_sync', 3000, syncStatus, { preventOverlap: true });

@@ -40,6 +40,8 @@ let wxPollController: AbortController | undefined
 let wxPollInFlight: Promise<void> | undefined
 let wxPollKey = ''
 let wxPendingCode = ''
+let wxPendingLoginBuffer = ''
+let wxPendingOpenid = ''
 const qqTaskId = ref('')
 const qqStatus = ref('')
 const qqError = ref('')
@@ -142,6 +144,14 @@ async function submitPendingQrAccount(platform: 'wx' | 'qq') {
   }
 
   const payload: any = { name, code, platform, loginType: 'manual' }
+  if (platform === 'wx') {
+    if (wxPendingLoginBuffer) {
+      payload.loginBuffer = wxPendingLoginBuffer
+    }
+    if (wxPendingOpenid) {
+      payload.openid = wxPendingOpenid
+    }
+  }
   const saved = await addAccount(payload, !!props.editData)
   if (!saved && props.show && activeLoginTab.value === `${platform}_qr`) {
     if (platform === 'wx')
@@ -246,6 +256,8 @@ function resetWxLogin() {
   wxQrUrl.value = ''
   wxLoading.value = false
   wxPendingCode = ''
+  wxPendingLoginBuffer = ''
+  wxPendingOpenid = ''
   clearQrNameSubmitTimer()
 }
 
@@ -261,6 +273,8 @@ async function getWxCodeAndAdd(taskId: string, flowVersion: number) {
     return
   const code = String(codeResult.data?.data?.code || '').trim()
   const nickname = String(codeResult.data?.data?.nickname || '').trim()
+  wxPendingLoginBuffer = String(codeResult.data?.data?.loginBuffer || '').trim()
+  wxPendingOpenid = String(codeResult.data?.data?.openid || '').trim()
   if (!code)
     throw new Error('未获取到登录 Code')
 

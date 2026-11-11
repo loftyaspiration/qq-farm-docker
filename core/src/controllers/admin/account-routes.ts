@@ -8,6 +8,7 @@ export {};
 
 const store = require('../../models/store');
 const { addOrUpdateAccount, deleteAccount } = store;
+const { saveWxCredential, deleteWxCredential } = require('../../models/store/wx-credentials');
 const { findAccountByRef } = require('../../services/account-resolver');
 const { updateRuntimeConfig, getRuntimeConfig, getDefaultSystemConfig, getDevicePresets, getTimeZoneOptions } = require('../../config/config');
 
@@ -100,8 +101,15 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             }
 
             const data = addOrUpdateAccount(payload);
+            const savedAccountId = isUpdate ? String(payload.id) : String((data.accounts.at(-1) || {}).id || '');
+            if (savedAccountId && payload.platform === 'wx' && String(payload.loginBuffer || '').trim()) {
+                saveWxCredential(savedAccountId, {
+                    loginBuffer: payload.loginBuffer,
+                    openid: payload.openid,
+                });
+            }
             if (ctx.provider.addAccountLog) {
-                const accountId = isUpdate ? String(payload.id) : String((data.accounts.at(-1) || {}).id || '');
+                const accountId = savedAccountId;
                 const accountName = payload.name || '';
                 ctx.provider.addAccountLog(
                     isUpdate ? 'update' : 'add',
@@ -136,6 +144,7 @@ function mountAccountRoutes(app: Application, ctx: AdminContext): void {
             const before = ctx.provider.getAccounts();
             const target = findAccountByRef(before.accounts || [], req.params.id);
             ctx.provider.stopAccount(resolvedId);
+            deleteWxCredential(resolvedId);
             const data = deleteAccount(resolvedId);
             if (ctx.provider.addAccountLog) {
                 ctx.provider.addAccountLog('delete', `删除账号: ${(target && target.name) || req.params.id}`, resolvedId, target ? target.name : '');
