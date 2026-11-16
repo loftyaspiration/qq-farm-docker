@@ -209,6 +209,24 @@ function loadConfigs(): void {
                     fruitToPlant.set(plant.fruit.id, plant);
                 }
             }
+            // 官方 Plant.json 未收录的新作物（如牧草）：用同目录 PlantExtra.json 补齐，
+            // 只补 id/seed_id/name/size 这类身份字段，生长阶段仍以服务端下发为准。
+            const extraPlantPath = path.join(configDir, 'PlantExtra.json');
+            if (fs.existsSync(extraPlantPath)) {
+                try {
+                    const extraPlants: PlantItem[] = JSON.parse(fs.readFileSync(extraPlantPath, 'utf8'));
+                    for (const plant of (Array.isArray(extraPlants) ? extraPlants : [])) {
+                        if (!plant || !plant.id || plantMap.has(plant.id)) continue;
+                        plantConfig!.push(plant);
+                        plantMap.set(plant.id, plant);
+                        if (plant.seed_id) seedToPlant.set(plant.seed_id, plant);
+                        if (plant.fruit && plant.fruit.id) fruitToPlant.set(plant.fruit.id, plant);
+                    }
+                    console.warn(`[配置] 已合并补充植物配置 (${extraPlants.length} 种)`);
+                } catch (e: any) {
+                    console.warn('[配置] 加载 PlantExtra.json 失败:', e.message);
+                }
+            }
             console.warn(`[配置] 已加载植物配置 (${plantConfig!.length} 种)`);
         }
     } catch (e: any) {

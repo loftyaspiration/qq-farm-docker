@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1020040,
+    "seed_id": 20040,
+    "name": "牧草",
+    "land_level_need": 1,
+    "seasons": 1,
+    "size": null,
+    "exp": 0,
+    "fruit": {
+      "id": 7001,
+      "count": 1
+    }
+  }
+]
