@@ -215,8 +215,9 @@ async function purchaseMallProduct(goodsIdInput: unknown, countInput: unknown, s
 }
 
 // ShopService 4 is the official 道具 tab; MallService slot 4 is SVIP.
+// 道具商店按商店类型（ITEM）用金币结算，不是金豆豆。
 const PROPS_SHOP_ID = 4;
-const PROPS_CURRENCY_ID = 1005;
+const PROPS_CURRENCY_ID = 1001;
 
 async function getPropsShop(): Promise<any> {
     const reply = await require('./farm/api').getShopInfo(PROPS_SHOP_ID);
@@ -283,7 +284,7 @@ async function purchaseProps(goodsIdInput: unknown, countInput: unknown, expecte
             const bag = await warehouse.getBag();
             const currency = warehouse.getBagItems(bag).filter((item: any) => toNum(item.id) === PROPS_CURRENCY_ID);
             const available = currency.filter((item: any) => !warehouse.isItemLocked(item)).reduce((sum: number, item: any) => sum + toNum(item.count), 0);
-            if (goods.price.balance === null || available < amount) throw businessError('INSUFFICIENT_BALANCE', '金豆豆可用余额不足');
+            if (goods.price.balance === null || available < amount) throw businessError('INSUFFICIENT_BALANCE', '金币可用余额不足');
         }
         const reply = await require('./farm/api').buyGoods(goodsId, count, goods.price.count);
         const rewards = (reply.get_items || []).map((item: any) => itemDto(item));
