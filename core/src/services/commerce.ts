@@ -4,9 +4,6 @@ const { getItemById, getItemImageById } = require('../config/gameConfig');
 const { getServerTimeSec, toNum } = require('../utils/utils');
 const mallService = require('./mall');
 const mysteryShopService = require('./mystery-shop');
-const { createModuleLogger } = require('./logger');
-
-const logger = createModuleLogger('commerce');
 
 let purchaseTail: Promise<void> = Promise.resolve();
 
@@ -215,13 +212,22 @@ async function purchaseMallProduct(goodsIdInput: unknown, countInput: unknown, s
 }
 
 // ShopService 4 is the official 道具 tab; MallService slot 4 is SVIP.
-// 道具商店按商店类型（ITEM）用金币结算，不是金豆豆。
 const PROPS_SHOP_ID = 4;
-const PROPS_CURRENCY_ID = 1001;
+// 道具商店按商品内容决定币种：种子类商品用金币，其余道具仍用金豆豆。
+const PROPS_GOLD_ID = 1001;
+const PROPS_BEAN_ID = 1005;
+const SEED_ITEM_TYPE = 5;
+
+function propsCurrencyId(itemId: unknown): number {
+    const metadata = getItemById(toNum(itemId));
+    return toNum(metadata?.type) === SEED_ITEM_TYPE ? PROPS_GOLD_ID : PROPS_BEAN_ID;
+}
 
 async function getPropsShop(): Promise<any> {
     const reply = await require('./farm/api').getShopInfo(PROPS_SHOP_ID);
-    const balances = await currencyBalances([PROPS_CURRENCY_ID]);
+    const goodsList: any[] = reply.goods_list || [];
+    const currencyIds = Array.from(new Set<number>(goodsList.map((goods: any) => propsCurrencyId(goods.item_id))));
+    const balances = await currencyBalances(currencyIds);
     const now = getServerTimeSec();
     return {
         shopId: PROPS_SHOP_ID,
@@ -229,8 +235,9 @@ async function getPropsShop(): Promise<any> {
         subSlotType: 0,
         serverTime: now * 1000,
         refreshCountdown: 0,
-        currencies: [{ ...itemDto({ id: PROPS_CURRENCY_ID, count: balances[PROPS_CURRENCY_ID] || 0 }), balanceKnown: Object.hasOwn(balances, PROPS_CURRENCY_ID) }],
-        goods: (reply.goods_list || []).map((goods: any) => {
+        currencies: currencyIds.map((id: number) => ({ ...itemDto({ id, count: balances[id] || 0 }), balanceKnown: Object.hasOwn(balances, id) })),
+        goods: goodsList.map((goods: any) => {
+            const currencyId = propsCurrencyId(goods.item_id);
             const start = toNum(goods.discount_start_time);
             const end = toNum(goods.discount_end_time);
             // Proto3 omits discount_price=0. Positive, active dates establish
@@ -250,7 +257,7 @@ async function getPropsShop(): Promise<any> {
             return {
                 id: toNum(goods.id), name: reward.name, type: PROPS_SHOP_ID,
                 rewards: [reward],
-                price: { ...itemDto({ id: PROPS_CURRENCY_ID, count: price }), balance: balances[PROPS_CURRENCY_ID] ?? null },
+                price: { ...itemDto({ id: currencyId, count: price }), balance: balances[currencyId] ?? null },
                 originalPrice: promotionActive ? toNum(goods.price) : null,
                 isFree: valid && price === 0,
                 limit, isLimited: !!limit,
@@ -282,36 +289,21 @@ async function purchaseProps(goodsIdInput: unknown, countInput: unknown, expecte
         if (amount > 0) {
             const warehouse = require('./warehouse');
             const bag = await warehouse.getBag();
-            const currency = warehouse.getBagItems(bag).filter((item: any) => toNum(item.id) === PROPS_CURRENCY_ID);
+            const currency = warehouse.getBagItems(bag).filter((item: any) => toNum(item.id) === goods.price.id);
             const available = currency.filter((item: any) => !warehouse.isItemLocked(item)).reduce((sum: number, item: any) => sum + toNum(item.count), 0);
-            if (goods.price.balance === null || available < amount) throw businessError('INSUFFICIENT_BALANCE', '金币可用余额不足');
+            if (goods.price.balance === null || available < amount) throw businessError('INSUFFICIENT_BALANCE', `${goods.price.name || '可用'}余额不足`);
         }
         const reply = await require('./farm/api').buyGoods(goodsId, count, goods.price.count);
         const rewards = (reply.get_items || []).map((item: any) => itemDto(item));
         const costs = (reply.cost_items || []).map((item: any) => itemDto(item)).filter((item: any) => item.count > 0);
-        const expectedReward = goods.rewards[0];
-        const rewardEntry = rewards.find((item: any) => item.id === expectedReward.id);
-        // 服务端已受理购买：只要求回包里出现期望物品，数量或扣费口径有差异时记录明细而不阻断，
-        // 避免把「道具商店」这类与商城分页不同口径的回包误判成失败。
-        if (!rewardEntry) {
-            logger.warn('道具商店购买回包缺少期望物品', { goodsId, count, expected: expectedReward, rewards });
+        if (rewards.length !== 1 || rewards[0].id !== goods.rewards[0].id || rewards[0].count !== rewardAmount
+            || costs.some((item: any) => item.id !== goods.price.id)
+            || costs.reduce((sum: number, item: any) => sum + item.count, 0) !== amount) {
             throw businessError('SHOP_RESULT_UNCONFIRMED', '购买回包与商品不一致，请刷新确认，勿重复购买');
-        }
-        const costTotal = costs.reduce((sum: number, item: any) => sum + item.count, 0);
-        const costMatches = costs.every((item: any) => item.id === PROPS_CURRENCY_ID) && costTotal === amount;
-        if (rewardEntry.count !== rewardAmount || !costMatches) {
-            logger.warn('道具商店购买回包与预期不一致', {
-                goodsId,
-                count,
-                expectedReward: { id: expectedReward.id, count: rewardAmount },
-                actualRewards: rewards.map((item: any) => ({ id: item.id, count: item.count })),
-                expectedCost: { id: PROPS_CURRENCY_ID, count: amount },
-                actualCosts: costs.map((item: any) => ({ id: item.id, count: item.count })),
-            });
         }
         let catalog = null;
         try { catalog = await getPropsShop(); } catch {}
-        return { purchase: { goodsId, count, rewards, costs }, catalog, refreshRequired: !catalog };
+        return { purchase: { goodsId, count, rewards }, catalog, refreshRequired: !catalog };
     });
 }
 
