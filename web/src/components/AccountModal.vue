@@ -196,6 +196,9 @@ async function loadLoginSettings() {
         activeLoginTab.value = 'code'
       if (activeLoginTab.value === 'qq_qr' && loginSettings.value.qqQrLogin && !qqTaskId.value)
         void startQqLogin()
+      // 微信扫码是本项目的主要登录方式：弹窗打开后默认直接进扫码页，不用再手动切页签。
+      if (activeLoginTab.value === 'code' && loginSettings.value.wechatQrLogin && !wxTaskId.value)
+        activeLoginTab.value = 'wx_qr'
     }
   }
 }
