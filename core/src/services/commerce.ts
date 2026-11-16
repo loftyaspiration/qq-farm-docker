@@ -4,6 +4,9 @@ const { getItemById, getItemImageById } = require('../config/gameConfig');
 const { getServerTimeSec, toNum } = require('../utils/utils');
 const mallService = require('./mall');
 const mysteryShopService = require('./mystery-shop');
+const { createModuleLogger } = require('./logger');
+
+const logger = createModuleLogger('commerce');
 
 let purchaseTail: Promise<void> = Promise.resolve();
 
@@ -285,14 +288,29 @@ async function purchaseProps(goodsIdInput: unknown, countInput: unknown, expecte
         const reply = await require('./farm/api').buyGoods(goodsId, count, goods.price.count);
         const rewards = (reply.get_items || []).map((item: any) => itemDto(item));
         const costs = (reply.cost_items || []).map((item: any) => itemDto(item)).filter((item: any) => item.count > 0);
-        if (rewards.length !== 1 || rewards[0].id !== goods.rewards[0].id || rewards[0].count !== rewardAmount
-            || costs.some((item: any) => item.id !== PROPS_CURRENCY_ID)
-            || costs.reduce((sum: number, item: any) => sum + item.count, 0) !== amount) {
+        const expectedReward = goods.rewards[0];
+        const rewardEntry = rewards.find((item: any) => item.id === expectedReward.id);
+        // 服务端已受理购买：只要求回包里出现期望物品，数量或扣费口径有差异时记录明细而不阻断，
+        // 避免把「道具商店」这类与商城分页不同口径的回包误判成失败。
+        if (!rewardEntry) {
+            logger.warn('道具商店购买回包缺少期望物品', { goodsId, count, expected: expectedReward, rewards });
             throw businessError('SHOP_RESULT_UNCONFIRMED', '购买回包与商品不一致，请刷新确认，勿重复购买');
+        }
+        const costTotal = costs.reduce((sum: number, item: any) => sum + item.count, 0);
+        const costMatches = costs.every((item: any) => item.id === PROPS_CURRENCY_ID) && costTotal === amount;
+        if (rewardEntry.count !== rewardAmount || !costMatches) {
+            logger.warn('道具商店购买回包与预期不一致', {
+                goodsId,
+                count,
+                expectedReward: { id: expectedReward.id, count: rewardAmount },
+                actualRewards: rewards.map((item: any) => ({ id: item.id, count: item.count })),
+                expectedCost: { id: PROPS_CURRENCY_ID, count: amount },
+                actualCosts: costs.map((item: any) => ({ id: item.id, count: item.count })),
+            });
         }
         let catalog = null;
         try { catalog = await getPropsShop(); } catch {}
-        return { purchase: { goodsId, count, rewards }, catalog, refreshRequired: !catalog };
+        return { purchase: { goodsId, count, rewards, costs }, catalog, refreshRequired: !catalog };
     });
 }
 
