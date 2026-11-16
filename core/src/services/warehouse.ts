@@ -794,15 +794,20 @@ async function getBagSeeds(): Promise<any[]> {
         if (isItemLocked(item)) continue;
 
         const plant: any = getPlantBySeedId(seedId);
-        if (!plant) continue;
+        const itemInfo: any = getItemById(seedId);
+        // 游戏新增道具可能先进了 ItemInfo 而 Plant.json 还没收录（如道具商店购买的新种子）：
+        // 只要求道具配置声明了可种植，就按 1x1 种子收进列表，避免整类新种子被过滤掉。
+        const plantableItem: boolean = !!itemInfo
+            && (Number(itemInfo.type) === 5 || String(itemInfo.interaction_type || '').trim() === 'plant');
+        if (!plant && !plantableItem) continue;
 
         const current: any = merged.get(seedId) || {
             seedId,
-            name: String(plant.name || `种子#${seedId}`),
+            name: String((plant && plant.name) || (itemInfo && itemInfo.name) || `种子#${seedId}`),
             count: 0,
-            requiredLevel: (() => { const si = getItemById(seedId); return si ? Math.max(0, Number(si.level || 0)) : Math.max(0, Number(plant.land_level_need || 0)); })(),
+            requiredLevel: (() => { const si = getItemById(seedId); if (si) return Math.max(0, Number(si.level || 0)); return Math.max(0, Number(plant && plant.land_level_need || 0)); })(),
             image: getSeedImageBySeedId(seedId) || getItemImageById(seedId),
-            plantSize: Math.max(1, Number(plant.size || 1)),
+            plantSize: Math.max(1, Number(plant && plant.size || 1)),
         };
         current.count += count;
         merged.set(seedId, current);

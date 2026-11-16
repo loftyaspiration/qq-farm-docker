@@ -745,7 +745,8 @@ watch(() => [localStrategySettings.value.plantingStrategy, currentAccountId.valu
 const preferredSeedOptions = computed(() => {
   const options: { label: string, value: number, disabled?: boolean }[] = [{ label: '自动选择', value: 0, disabled: false }]
   options.push(...seedOptions.value.map(seed => ({
-    label: `${seed.requiredLevel}级 ${seed.name} (${seed.price}金)`,
+    // 背包里持有、种子商店不卖的种子没有价格，标注来源避免显示成“null金”。
+    label: `${seed.requiredLevel}级 ${seed.name} (${seed.price == null ? '背包持有' : `${seed.price}金`})`,
     value: seed.seedId,
     disabled: seed.locked || seed.soldOut,
   })))

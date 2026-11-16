@@ -661,6 +661,37 @@ async function getAvailableSeeds(propagateErrors: boolean = false): Promise<any[
         if (propagateErrors) throw e;
     }
 
+    // 背包里已持有、但种子商店没有的种子（例如道具商店买的新种子）也并进列表，
+    // 否则策略设置里选不到、也无法排进背包种子优先顺序。
+    try {
+        const bagSeeds = await getBagSeeds();
+        const knownSeedIds = new Set<number>(list.map((item: any) => toNum(item && item.seedId)));
+        for (const seed of (Array.isArray(bagSeeds) ? bagSeeds : [])) {
+            const seedId = toNum(seed && seed.seedId);
+            if (seedId <= 0 || knownSeedIds.has(seedId)) continue;
+            knownSeedIds.add(seedId);
+            list.push({
+                seedId,
+                goodsId: 0,
+                name: String((seed && seed.name) || getPlantNameBySeedId(seedId)),
+                price: null,
+                itemCount: 1,
+                remainingPurchaseCount: null,
+                requiredLevel: toNum(seed && seed.requiredLevel),
+                requiresUnlockCard: false,
+                locked: false,
+                soldOut: false,
+                unknownMeta: true,
+                fromBag: true,
+                bagCount: toNum(seed && seed.count),
+            });
+        }
+    } catch (e: any) {
+        logWarn('种子', `读取背包种子失败，仅展示种子商店列表: ${e.message}`, {
+            module: 'farm', event: '种子列表', result: 'bag_seeds_error'
+        });
+    }
+
     // 如果商店请求失败或为空，使用本地配置
     if (list.length === 0) {
         const allSeeds = getAllSeeds();
