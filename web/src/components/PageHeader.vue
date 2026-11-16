@@ -4,15 +4,17 @@ import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+// [fnos-fork] 保留游戏公告入口与上游新增的游戏空间切换；主题切换在 fnos 分支固定浅色，不引入。
 import BulletinBoardDialog from '@/components/fnos/BulletinBoardDialog.vue'
-import { menuRoutes } from '@/router/menu'
+import GameSpaceSwitch from '@/components/GameSpaceSwitch.vue'
+import { allMenuRoutes } from '@/router/menu'
 import { useAppStore } from '@/stores/app'
 
 const route = useRoute()
 const appStore = useAppStore()
 const isDesktop = useMediaQuery('(min-width: 1024px)')
 const { sidebarOpen, sidebarCollapsed } = storeToRefs(appStore)
-const currentPage = computed(() => menuRoutes.find(item => item.name === route.name))
+const currentPage = computed(() => allMenuRoutes.find(item => item.name === route.name))
 const navigationExpanded = computed(() => isDesktop.value ? !sidebarCollapsed.value : sidebarOpen.value)
 const navigationToggleLabel = computed(() => navigationExpanded.value ? '收起侧栏' : '展开侧栏')
 const navigationIcon = computed(() => {
@@ -35,12 +37,12 @@ function toggleNavigation() {
   <header class="page-header">
     <div class="page-heading min-w-0">
       <span v-if="currentPage" class="page-heading__icon" :class="currentPage.icon" />
-      <h1 class="page-heading__title">
+      <h1 class="page-heading__title" tabindex="-1">
         {{ currentPage?.label || 'QQ农场智能助手' }}
       </h1>
     </div>
     <div class="flex shrink-0 items-center gap-1">
-      <!-- [fnos-fork] 主题切换已移除，只保留浅色。原按钮位置改为只读「游戏公告」。合并上游时保留，不要恢复 ThemeSwitcher。 -->
+      <!-- [fnos-fork] 上游主题切换按钮已恢复，仅新增只读「游戏公告」入口。合并上游时保留，不要删除公告按钮。 -->
       <NButton quaternary circle aria-haspopup="dialog" :aria-expanded="bulletinOpen" aria-label="游戏公告" title="游戏公告" @click="bulletinOpen = true">
         <div class="i-carbon-bullhorn text-xl" />
       </NButton>
@@ -48,6 +50,7 @@ function toggleNavigation() {
       <NButton quaternary circle aria-controls="app-sidebar" :aria-expanded="navigationExpanded" :aria-label="navigationToggleLabel" :title="navigationToggleLabel" @click="toggleNavigation">
         <div class="text-xl" :class="navigationIcon" />
       </NButton>
+      <GameSpaceSwitch />
     </div>
   </header>
 </template>
