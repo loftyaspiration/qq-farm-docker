@@ -360,8 +360,15 @@ function buildLandDetail(land: any, options: { friendMode?: boolean; landsMap?: 
         ? Math.max(0, landBuff.plantExpBonus)
         : 0;
     const displayPlantId = getMutantDisplayPlantId(plantId, mutantConfigIds);
-    const plantName = getPlantName(displayPlantId) || getPlantName(plantId) || plant.name || '未知';
     const plantCfg = getPlantById(plantId);
+    const displayPlantCfg = displayPlantId === plantId ? plantCfg : getPlantById(displayPlantId);
+    // 本地 Plant.json 未收录的新作物（如牧草）没有配置名，此时用服务端回包里的 plant.name，
+    // 不能先落回 getPlantName()，否则会一直显示成「植物{id}」。
+    const plantName = (displayPlantCfg && displayPlantCfg.name)
+        || (plantCfg && plantCfg.name)
+        || plant.name
+        || getPlantName(plantId)
+        || '未知';
     const seedId = toNum(plantCfg?.seed_id);
     const plantSize = Math.max(1, toNum(plantCfg?.size) || toNum(sourceLand?.land_size) || landSize || 1);
     const totalSeason = Math.max(1, toNum(plantCfg?.seasons) || 1);
@@ -829,7 +836,8 @@ function analyzeLands(lands: any[], debug?: boolean, ownGid?: number): {
         if (phaseVal === PlantPhase.MATURE) {
             result.harvestable.push(id);
             const plantId = toNum(plant.id);
-            const plantNameFromConfig = getPlantName(plantId);
+            const plantCfgForHarvest = getPlantById(plantId);
+            const plantNameFromConfig = (plantCfgForHarvest && plantCfgForHarvest.name) || plantName;
             const plantExp = getPlantExp(plantId);
             result.harvestableInfo.push({
                 landId: id,
