@@ -85,6 +85,8 @@ export interface AccountConfig {
   fertilizerBuyNormalCount: number;
   fertilizerBuyNormalThresholdHours: number;
   fertilizerBuyCheckIntervalMinutes: number;
+  /** 每天检查邮箱奖励的时间（0-23 点，默认 10 点）；到点后每天只触发一次。 */
+  emailClaimHour: number;
   bagSeedPriority: number[];
   /** 是否为明确排在前面的多格背包种子保留尚未连成布局的空地。 */
   bagSeedMultiLandReservationEnabled: boolean;
@@ -108,35 +110,6 @@ export interface AccountConfig {
     skipStealMaster?: boolean;
     /** [fnos-fork] 2026.10.21.3 大小号协作：放草/放虫只对大号做 */
     badOnlyMaster?: boolean;
-  };
-  /** [fnos-fork] 奶茶活动自动雇佣（见 services/fnos-milk-tea-auto-hire.ts） */
-  fnosMilkTeaAutoHire?: {
-    enabled: boolean;
-    durationId: number;
-    /** [fnos-fork] 2026-10-27 优先雇佣人（有序，可多个）；priorityGid/priorityName = 第一个人（降级兼容） */
-    priorityFriends?: Array<{ gid: number; name: string }>;
-    priorityGid?: number;
-    priorityName?: string;
-    priorityConfigured?: boolean;
-    talentId: number;
-    allowRobots: boolean;
-    autoWork?: boolean;
-    workType?: number;
-  };
-  /** [fnos-fork] 奶茶收益每小时自动领取、兑换商店每日兑换森野黄金芽种子（见 services/fnos-milk-tea-daily.ts） */
-  fnosMilkTeaDaily?: {
-    autoClaim: boolean;
-    autoExchangeSeed: boolean;
-    /** [fnos-fork] 需求 27：8 种森野种子按顺序、按最大数量兑换（缺省时只勾森野黄金芽种子） */
-    seedExchange?: Array<{ id: number; enabled: boolean }>;
-  };
-  /** [fnos-fork] 2026-10-28 奶茶自动制作（可排除金露云酪）、自动领取工资（见 services/fnos-milk-tea-extra.ts） */
-  fnosMilkTeaExtra?: {
-    autoCraft: boolean;
-    craftGoldenCheese: boolean;
-    autoClaimWages: boolean;
-    /** [fnos-fork] 需求 27：店铺自动升级 */
-    autoUpgradeShop?: boolean;
   };
   /** [fnos-fork] 2026-10-28 图鉴奖励自动领取、自动完成图鉴（见 services/fnos-illustrated-auto.ts） */
   fnosIllustratedAuto?: {

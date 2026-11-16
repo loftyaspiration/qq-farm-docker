@@ -7,8 +7,7 @@ const { parentPort, workerData } = require('node:worker_threads');
 const { CONFIG, updateRuntimeConfig } = require('../config/config');
 const { getLevelExpProgress, loadConfigs } = require('../config/gameConfig');
 const { getAutomation, getPreferredSeed, getConfigSnapshot, applyConfigSnapshot, addOrUpdateAccount } = require('../models/store');
-const { checkAndClaimEmails } = require('../services/email');
-const { getEmailDailyState } = require('../services/email');
+const { checkAndClaimEmails, configureEmailClaim, getEmailDailyState } = require('../services/email');
 const { checkFarm, startFarmCheckLoop, stopFarmCheckLoop, refreshFarmCheckLoop, getLandsDetail, getAvailableSeeds, purchaseSeed, runFarmOperation, runFertilizerByConfig, fertilizeOwnLand } = require('../services/farm');
 const { checkFriends, startFriendCheckLoop, stopFriendCheckLoop, refreshFriendCheckLoop, getFriendsList, getFriendsListCacheOnly, getFriendLandsDetail, doFriendOperation, deleteFriend } = require('../services/friend');
 const { getInteractRecords } = require('../services/interact');
@@ -132,7 +131,7 @@ const workerScheduler = createScheduler('worker');
 async function runDailyRoutines(force: boolean = false): Promise<void> {
     if (!loginReady) return;
     try {
-        await checkAndClaimEmails(force);
+        await checkAndClaimEmails();
         await openCharitySettlementGiftPacksSilently();
         await checkDailyShareStatus(force);
         await performDailyMonthCardGift(force);
@@ -150,12 +149,20 @@ function stopDailyRoutineTimer(): void {
 function startDailyRoutineTimer(runImmediately: boolean = true): void {
     stopDailyRoutineTimer();
     lastDailyRunDate = getSystemDateKey();
-    // 新账号登录后强制执行一次领取
+    // 登录时检查日常任务，邮箱仍遵守配置的领取时间。
     if (runImmediately) runExclusiveAutomationTask('daily_routines', () => runDailyRoutines(true)).catch(() => null);
     workerScheduler.setIntervalTask('daily_routine_interval', 30 * 1000, () => {
         if (!loginReady) return;
         const today = getSystemDateKey();
-        if (today === lastDailyRunDate) return;
+        if (today === lastDailyRunDate) {
+            const email = getEmailDailyState();
+            if (!email.doneToday && email.result !== 'running' && Date.now() >= email.nextCheckAt) {
+                runExclusiveAutomationTask('email_claim', async () => {
+                    if (loginReady) await checkAndClaimEmails();
+                }).catch(() => null);
+            }
+            return;
+        }
         lastDailyRunDate = today;
         runExclusiveAutomationTask('daily_routines', () => runDailyRoutines(true)).catch(() => null);
     });
@@ -292,6 +299,7 @@ async function runFarmTick(auto: any): Promise<void> {
 // ============ 好友统一任务：偷菜、帮助、放虫放草 ============
 async function runFriendTick(auto: any): Promise<void> {
     if (friendTaskRunning) return;
+    const generation = runtimeGeneration;
     const friendMs = randomIntervalMs(
         workerConfig.friendCheckIntervalMin || 12000,
         workerConfig.friendCheckIntervalMax || 15000
@@ -316,22 +324,27 @@ async function runFriendTick(auto: any): Promise<void> {
     } catch (e: any) {
         log('系统', `好友统一任务执行失败: ${e.message}`, { module: 'system', event: '好友统一任务', result: 'error' });
     } finally {
-        nextFriendRunAt = Date.now() + friendMs;
-        friendTaskRunning = false;
+        if (generation === runtimeGeneration) {
+            nextFriendRunAt = Date.now() + friendMs;
+            friendTaskRunning = false;
+            scheduleUnifiedNextTick();
+        }
     }
 }
 
 async function runUnifiedTick(): Promise<void> {
     if (!unifiedSchedulerRunning || !loginReady) return;
+    const generation = runtimeGeneration;
     const now = Date.now();
     const dueFarm = now >= nextFarmRunAt;
     const dueFriend = now >= nextFriendRunAt;
     if (!dueFarm && !dueFriend) return;
 
     const auto = getAutomation();
-    // 串行执行而非并行，避免并发请求过多导致超时
+    // 好友按单次访问持锁，等待间隔不阻塞后续农场巡查。
     if (dueFarm) await runExclusiveAutomationTask('farm_tick', () => runFarmTick(auto));
-    if (dueFriend) await runExclusiveAutomationTask('friend_tick', () => runFriendTick(auto));
+    if (!unifiedSchedulerRunning || !loginReady || generation !== runtimeGeneration) return;
+    if (dueFriend && !friendTaskRunning) void runFriendTick(auto);
 }
 
 function scheduleUnifiedNextTick(): void {
@@ -341,9 +354,10 @@ function scheduleUnifiedNextTick(): void {
 
     const now = Date.now();
     const nextAt = Math.min(
-        Number(nextFarmRunAt) || (now + 1000),
-        Number(nextFriendRunAt) || (now + 1000)
+        farmTaskRunning ? Number.POSITIVE_INFINITY : (Number(nextFarmRunAt) || (now + 1000)),
+        friendTaskRunning ? Number.POSITIVE_INFINITY : (Number(nextFriendRunAt) || (now + 1000))
     );
+    if (!Number.isFinite(nextAt)) return;
     const delayMs = Math.max(1000, nextAt - now); // 最低 1 秒
 
     workerScheduler.setTimeoutTask('unified_next_tick', delayMs, async () => {
@@ -410,12 +424,7 @@ async function runStartupSequence(canContinue: () => boolean = () => loginReady)
         startUnifiedScheduler();
         startDailyRoutineTimer(false);
         startMysteryShopTimer();
-        // [fnos-fork] 奶茶活动自动雇佣（未开启时每轮直接返回，不发请求）
-        require('../services/fnos-milk-tea-auto-hire').startFnosMilkTeaAutoHire(workerScheduler, runExclusiveAutomationTask);
-        // [fnos-fork] 奶茶收益每小时自动领取 / 森野黄金芽种子每日兑换（都未开启时每轮直接返回，不发请求）
-        require('../services/fnos-milk-tea-daily').startFnosMilkTeaDaily(workerScheduler, runExclusiveAutomationTask);
-        // [fnos-fork] 奶茶自动制作 / 自动领工资；图鉴奖励自动领取 / 自动完成图鉴（都未开启时每轮直接返回，不发请求）
-        require('../services/fnos-milk-tea-extra').startFnosMilkTeaExtra(workerScheduler, runExclusiveAutomationTask);
+        // [fnos-fork] 图鉴奖励自动领取 / 自动完成图鉴（都未开启时每轮直接返回，不发请求）
         require('../services/fnos-illustrated-auto').startFnosIllustratedAuto(workerScheduler, runExclusiveAutomationTask);
         // [fnos-fork] 偷收比：忽略高比例申请、来偷菜 Bark、自动删除、在线期间偷菜删除（开关都关时不发请求）
         require('../services/friend/fnos-steal-ratio').startFnosStealRatio(workerScheduler, runExclusiveAutomationTask);
@@ -474,9 +483,10 @@ function applyRuntimeConfig(snapshot: any, syncNow: boolean = false): number {
     if (!loginReady && snapshot && snapshot.systemClientVersion !== undefined) {
         updateRuntimeConfig({ clientVersion: String(snapshot.systemClientVersion || '') });
     }
-    applyConfigSnapshot(snapshot || {}, { persist: false, accountId });
+    const appliedSnapshot = applyConfigSnapshot(snapshot || {}, { persist: false, accountId });
+    configureEmailClaim({ hour: appliedSnapshot.emailClaimHour, accountId });
     if (rev > appliedConfigRevision) appliedConfigRevision = rev;
-    // [fnos-fork] 大号/小号、奶茶自动雇佣：设置有变化时在日志里打印当前状态
+    // [fnos-fork] 大号/小号、图鉴、偷收比：设置有变化时在日志里打印当前状态
     try { require('../services/fnos-fork-config').onWorkerConfigApplied(); } catch { /* ignore */ }
 
     // 优先使用本次下发的间隔，避免 worker 内部 store 漂移导致回退默认值
@@ -1178,6 +1188,7 @@ async function getDailyGiftOverview(propagateErrors: boolean = false): Promise<a
 
     return {
         date: getSystemDateKey(),
+        timeZone: CONFIG.timeZone,
         growth: {
             key: 'growth_task',
             label: '成长任务',
@@ -1198,7 +1209,17 @@ async function getDailyGiftOverview(propagateErrors: boolean = false): Promise<a
                 totalCount: Number(task.totalCount || 3),
             },
             // 以下功能默认启用，enabled 固定为 true
-            { key: 'email_rewards', label: '邮箱奖励', enabled: true, doneToday: !!email.doneToday, lastAt: Number(email.lastCheckAt || 0) },
+            {
+                key: 'email_rewards',
+                label: '邮箱奖励',
+                enabled: true,
+                doneToday: email.doneToday,
+                lastAt: email.lastCheckAt,
+                nextAt: email.nextCheckAt,
+                scheduledHour: email.scheduledHour,
+                result: email.result,
+                lastError: email.lastError,
+            },
             { key: 'mall_free_gifts', label: '商城免费礼包', enabled: true, doneToday: !!free.doneToday, lastAt: Number(free.lastClaimAt || 0) },
             {
                 key: 'daily_share',

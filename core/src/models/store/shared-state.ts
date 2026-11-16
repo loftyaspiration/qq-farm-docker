@@ -7,15 +7,11 @@ const { createConfigStorage } = require('./config-storage');
 const { storageError } = require('../../services/json-db');
 // [fnos-fork] 大号/小号：账号配置 fnosAltAccount 的规范化
 const { normalizeFnosAltAccount } = require('../../services/farm/fnos-alt-account');
-// [fnos-fork] 奶茶活动自动雇佣：账号配置 fnosMilkTeaAutoHire 的规范化
-const { normalizeFnosMilkTeaAutoHire } = require('../../services/fnos-milk-tea-auto-hire');
-// [fnos-fork] 奶茶收益自动领取 / 森野黄金芽种子每日兑换
-const { normalizeFnosMilkTeaDaily } = require('../../services/fnos-milk-tea-daily');
-// [fnos-fork] 奶茶自动制作 / 领工资；图鉴奖励领取 / 自动完成图鉴
-const { normalizeFnosMilkTeaExtra } = require('../../services/fnos-milk-tea-extra');
+// [fnos-fork] 图鉴奖励领取 / 自动完成图鉴（奶茶 fork 功能已于 2026-11-15 下架）
 const { normalizeFnosIllustratedAuto } = require('../../services/fnos-illustrated-auto');
 // [fnos-fork] 偷收比：忽略高偷收比申请、好友页筛选、Bark、自动删除
 const { normalizeFnosStealRatio } = require('../../services/friend/fnos-steal-ratio');
+const { parseHourOfDay } = require('../../utils/hour-of-day');
 
 const STORE_FILE: string = getDataFile('store.json');
 const ACCOUNTS_FILE: string = getDataFile('accounts.json');
@@ -130,6 +126,7 @@ const DEFAULT_ACCOUNT_CONFIG: AccountConfig = {
     fertilizerBuyNormalCount: 1,
     fertilizerBuyNormalThresholdHours: 10,
     fertilizerBuyCheckIntervalMinutes: 60,
+    emailClaimHour: 10,
     bagSeedPriority: [],
     bagSeedMultiLandReservationEnabled: false,
     bagSeedLandTypes: {},
@@ -167,6 +164,10 @@ function normalizeFriendsListCacheTtlSec(input: unknown, fallback: number = DEFA
     const value = Number.parseInt(input as string, 10);
     const base = Number.isFinite(value) ? value : fallback;
     return Math.max(10, Math.min(INTERVAL_MAX_SEC, base));
+}
+
+function normalizeEmailClaimHour(input: unknown, fallback: number = DEFAULT_ACCOUNT_CONFIG.emailClaimHour): number {
+    return parseHourOfDay(input) ?? parseHourOfDay(fallback) ?? DEFAULT_ACCOUNT_CONFIG.emailClaimHour;
 }
 
 function normalizeAutoAcceptFriendMinLevel(input: unknown, fallback: number = 0): number {
@@ -329,6 +330,7 @@ function cloneAccountConfig(base: Partial<AccountConfig> = DEFAULT_ACCOUNT_CONFI
         fertilizerBuyNormalCount: Math.max(0, Math.min(10000, Number(base.fertilizerBuyNormalCount) || 0)),
         fertilizerBuyNormalThresholdHours: Math.max(0, Math.min(990, Number(base.fertilizerBuyNormalThresholdHours) || 0)),
         fertilizerBuyCheckIntervalMinutes: Math.max(1, Math.min(1440, Number(base.fertilizerBuyCheckIntervalMinutes) || 30)),
+        emailClaimHour: normalizeEmailClaimHour(base.emailClaimHour, DEFAULT_ACCOUNT_CONFIG.emailClaimHour),
         bagSeedPriority: normalizeBagSeedPriority(base.bagSeedPriority),
         bagSeedMultiLandReservationEnabled: base.bagSeedMultiLandReservationEnabled !== undefined
             ? !!base.bagSeedMultiLandReservationEnabled
@@ -344,12 +346,7 @@ function cloneAccountConfig(base: Partial<AccountConfig> = DEFAULT_ACCOUNT_CONFI
         autoAcceptHarvestStealSteal: normalizeAutoAcceptHarvestStealSteal(base.autoAcceptHarvestStealSteal, DEFAULT_ACCOUNT_CONFIG.autoAcceptHarvestStealSteal),
         // [fnos-fork] 大号/小号
         fnosAltAccount: normalizeFnosAltAccount(base.fnosAltAccount),
-        // [fnos-fork] 奶茶活动自动雇佣
-        fnosMilkTeaAutoHire: normalizeFnosMilkTeaAutoHire(base.fnosMilkTeaAutoHire),
-        // [fnos-fork] 奶茶收益自动领取 / 森野黄金芽种子每日兑换
-        fnosMilkTeaDaily: normalizeFnosMilkTeaDaily(base.fnosMilkTeaDaily),
-        // [fnos-fork] 奶茶自动制作 / 领工资；图鉴奖励领取 / 自动完成图鉴
-        fnosMilkTeaExtra: normalizeFnosMilkTeaExtra(base.fnosMilkTeaExtra),
+        // [fnos-fork] 图鉴奖励领取 / 自动完成图鉴
         fnosIllustratedAuto: normalizeFnosIllustratedAuto(base.fnosIllustratedAuto),
         // [fnos-fork] 偷收比
         fnosStealRatio: normalizeFnosStealRatio(base.fnosStealRatio),
@@ -433,7 +430,7 @@ function normalizeAccountConfig(input: unknown, fallback: AccountConfig = accoun
     }
 
     if (src.stealDelaySeconds !== undefined && src.stealDelaySeconds !== null) {
-        cfg.stealDelaySeconds = Math.max(0, Math.min(300, Number.parseInt(src.stealDelaySeconds, 10) || 0));
+        cfg.stealDelaySeconds = Math.max(0, Math.min(300, Number(src.stealDelaySeconds) || 0));
     }
 
     if (src.plantOrderRandom !== undefined && src.plantOrderRandom !== null) {
@@ -462,6 +459,10 @@ function normalizeAccountConfig(input: unknown, fallback: AccountConfig = accoun
 
     if (src.fertilizerBuyCheckIntervalMinutes !== undefined && src.fertilizerBuyCheckIntervalMinutes !== null) {
         cfg.fertilizerBuyCheckIntervalMinutes = Math.max(1, Math.min(1440, Number(src.fertilizerBuyCheckIntervalMinutes) || 30));
+    }
+
+    if (src.emailClaimHour !== undefined && src.emailClaimHour !== null) {
+        cfg.emailClaimHour = normalizeEmailClaimHour(src.emailClaimHour, cfg.emailClaimHour);
     }
 
     if (src.bagSeedPriority !== undefined && src.bagSeedPriority !== null) {
@@ -504,18 +505,6 @@ function normalizeAccountConfig(input: unknown, fallback: AccountConfig = accoun
     if (src.fnosAltAccount !== undefined && src.fnosAltAccount !== null) {
         cfg.fnosAltAccount = normalizeFnosAltAccount(src.fnosAltAccount, cfg.fnosAltAccount);
     }
-    // [fnos-fork] 奶茶活动自动雇佣
-    if (src.fnosMilkTeaAutoHire !== undefined && src.fnosMilkTeaAutoHire !== null) {
-        cfg.fnosMilkTeaAutoHire = normalizeFnosMilkTeaAutoHire(src.fnosMilkTeaAutoHire, cfg.fnosMilkTeaAutoHire);
-    }
-    // [fnos-fork] 奶茶收益自动领取 / 森野黄金芽种子每日兑换
-    if (src.fnosMilkTeaDaily !== undefined && src.fnosMilkTeaDaily !== null) {
-        cfg.fnosMilkTeaDaily = normalizeFnosMilkTeaDaily(src.fnosMilkTeaDaily, cfg.fnosMilkTeaDaily);
-    }
-    // [fnos-fork] 奶茶自动制作 / 领工资
-    if (src.fnosMilkTeaExtra !== undefined && src.fnosMilkTeaExtra !== null) {
-        cfg.fnosMilkTeaExtra = normalizeFnosMilkTeaExtra(src.fnosMilkTeaExtra, cfg.fnosMilkTeaExtra);
-    }
     // [fnos-fork] 图鉴奖励领取 / 自动完成图鉴
     if (src.fnosIllustratedAuto !== undefined && src.fnosIllustratedAuto !== null) {
         cfg.fnosIllustratedAuto = normalizeFnosIllustratedAuto(src.fnosIllustratedAuto, cfg.fnosIllustratedAuto);
@@ -538,6 +527,10 @@ accountFallbackConfig = {
     knownFriendGids: [],
     knownFriendGidSyncCooldownSec: DEFAULT_KNOWN_FRIEND_GID_SYNC_COOLDOWN_SEC,
     friendsListCacheTtlSec: DEFAULT_FRIENDS_LIST_CACHE_TTL_SEC,
+    // [fnos-fork] 未加载 store 前的兜底配置也带上 fnos 字段默认值，与 cloneAccountConfig 结果一致
+    fnosAltAccount: normalizeFnosAltAccount(undefined),
+    fnosIllustratedAuto: normalizeFnosIllustratedAuto(undefined),
+    fnosStealRatio: normalizeFnosStealRatio(undefined),
 };
 
 const globalConfig: GlobalConfig = {
@@ -561,6 +554,10 @@ function resolveAccountId(accountId: unknown): string {
 function loadGlobalConfig(): void {
     try {
         ensureDataDir();
+        // [fnos-fork] 2026-11-15 奶茶 fork 功能下架：主进程启动时先清掉残留的奶茶设置字段（幂等，失败不影响启动）
+        if (!process.env.FARM_ACCOUNT_ID) {
+            try { require('../../services/fnos-milk-tea-cleanup').cleanupFnosMilkTeaData(require('node:path').dirname(STORE_FILE)); } catch { /* ignore */ }
+        }
         const data: any = configStorage.load({ migrate: !process.env.FARM_ACCOUNT_ID });
         if (data && typeof data === 'object') {
             accountFallbackConfig = cloneAccountConfig(DEFAULT_ACCOUNT_CONFIG);
@@ -677,6 +674,7 @@ module.exports = {
     normalizeKnownFriendGids,
     normalizeKnownFriendGidSyncCooldownSec,
     normalizeFriendsListCacheTtlSec,
+    normalizeEmailClaimHour,
     normalizeBagSeedPriority,
     normalizeBagSeedLandTypes,
     normalizeBagSeedFallbackStrategy,

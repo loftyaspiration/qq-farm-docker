@@ -13,16 +13,17 @@ import FnosSortableList from '@/components/fnos/FnosSortableList.vue'
 import PageTabs from '@/components/PageTabs.vue'
 import AutomationSettingsForm from '@/components/settings/AutomationSettingsForm.vue'
 import BagSeedPriorityItem from '@/components/settings/BagSeedPriorityItem.vue'
-import FnosForkSettings from '@/components/settings/FnosForkSettings.vue' // [fnos-fork] 大号/小号、奶茶自动雇佣
+import FnosForkSettings from '@/components/settings/FnosForkSettings.vue' // [fnos-fork] 大小号协作、活动设置（占位）
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseSelect from '@/components/ui/BaseSelect.vue'
 import BaseSwitch from '@/components/ui/BaseSwitch.vue'
 import { getPlatformClass, getPlatformLabel, useAccountStore } from '@/stores/account'
+import { useNasUserStore } from '@/stores/nas-user'
 import { useSettingStore } from '@/stores/setting'
 import { useStatusStore } from '@/stores/status'
-import { useNasUserStore } from '@/stores/nas-user'
 import { useUserStore } from '@/stores/user'
+import { fnosNormalizeIllustratedAuto } from '@/utils/fnos-illustrated-auto' // [fnos-fork] 图鉴（自动控制）
 import { fnosMoveIndex } from '@/utils/fnos-sort-order' // [fnos-fork]
 
 const fertilizerLandTypeOptions = [
@@ -964,11 +965,13 @@ const localAutomationSettings = ref({
   fertilizerBuyNormalCount: 10,
   fertilizerBuyNormalThresholdHours: 10,
   fertilizerBuyCheckIntervalMinutes: 30,
+  emailClaimHour: 10 as number | string,
   autoAcceptFriendMinLevel: 0,
   autoAcceptRequireOwnLevel: false,
   autoAcceptHarvestStealEnabled: true,
   autoAcceptHarvestStealHarvest: 8,
   autoAcceptHarvestStealSteal: 1,
+  fnosIllustratedAuto: fnosNormalizeIllustratedAuto(null), // [fnos-fork] 图鉴（2026-11-15 起在自动控制里）
 })
 
 const fertilizerOptions = [
@@ -1063,11 +1066,13 @@ function syncLocalAutomationSettings() {
     localAutomationSettings.value.fertilizerBuyNormalCount = settings.value.fertilizerBuyNormalCount ?? 10
     localAutomationSettings.value.fertilizerBuyNormalThresholdHours = settings.value.fertilizerBuyNormalThresholdHours ?? 10
     localAutomationSettings.value.fertilizerBuyCheckIntervalMinutes = settings.value.fertilizerBuyCheckIntervalMinutes ?? 30
+    localAutomationSettings.value.emailClaimHour = settings.value.emailClaimHour
     localAutomationSettings.value.autoAcceptFriendMinLevel = settings.value.autoAcceptFriendMinLevel ?? 0
     localAutomationSettings.value.autoAcceptRequireOwnLevel = settings.value.autoAcceptRequireOwnLevel ?? false
     localAutomationSettings.value.autoAcceptHarvestStealEnabled = settings.value.autoAcceptHarvestStealEnabled ?? true
     localAutomationSettings.value.autoAcceptHarvestStealHarvest = settings.value.autoAcceptHarvestStealHarvest ?? 8
     localAutomationSettings.value.autoAcceptHarvestStealSteal = settings.value.autoAcceptHarvestStealSteal ?? 1
+    localAutomationSettings.value.fnosIllustratedAuto = fnosNormalizeIllustratedAuto(settings.value.fnosIllustratedAuto) // [fnos-fork]
   }
 }
 
@@ -1945,12 +1950,14 @@ async function handleResetSystemConfig() {
                   label="种植延迟 (秒)"
                   type="number"
                   min="0"
+                  max="60"
                 />
                 <BaseInput
                   v-model.number="localStrategySettings.stealDelaySeconds"
                   label="偷菜延迟 (秒)"
                   type="number"
                   min="0"
+                  max="300"
                 />
               </div>
             </div>
@@ -2006,7 +2013,7 @@ async function handleResetSystemConfig() {
           :account-id="currentAccountId"
           :account-name="currentAccountName"
         />
-        <!-- [fnos-fork] 活动设置（奶茶自动雇佣与工作事项、奶茶收益领取与种子兑换） -->
+        <!-- [fnos-fork] 活动设置（2026-11-15 奶茶 fork 功能下架后只显示「当前没有进行中的活动」占位） -->
         <FnosForkSettings
           v-else-if="activeTab === 'fnos-alt'"
           section="activity"
