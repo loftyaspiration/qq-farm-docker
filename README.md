@@ -55,8 +55,19 @@ QQ 农场助手的通用 **Docker / 群晖 NAS** 版本，基于 [Maksim-venus/q
 
 ## 上游同步说明
 
-本仓库基于 Maksim fork 的 `2026.11.4`（合并上游 PR #117，游戏协议 QQ/微信 `1.16.1.6_20261028`）。上游最新 PR #118（快乐不独享奖励页重构、协议升级到 `1.16.3.8_20261028`、WASM 更新）尚未合并，后续需要时再追。
+- **上游主仓库**：[liyangpengs/qq-farm-bot](https://github.com/liyangpengs/qq-farm-bot)，本仓库 remote 名 `upstream`，所有功能改动都从这里直接合并。
+- **中间层**：[Maksim-venus/qq-farm-bot-fnos](https://github.com/Maksim-venus/qq-farm-bot-fnos)，remote 名 `fnos`，只作参考对照，不再作为同步源。
+- **同步策略**：直接 `merge upstream/master`；冲突处保留本仓库自有改动（Docker 打包、管理员鉴权、微信登录持久化、游戏公告、偷收比、背包种子、牧草补充配置等）。
+- **最近同步**：`6ac7a3d`（2026-11-17，牧场工作台 + PR #135~#139 牧场修复）。
+- **同步方式**：`scripts/sync-upstream.ps1`（见下），或手动 `git fetch upstream --prune` → `git merge upstream/master` → core `tsc --noEmit` 与 web `vite build` 校验后提交。
 
+```powershell
+# 仅同步并校验（需要代理时加 -Proxy http://127.0.0.1:7289）
+.\scripts\sync-upstream.ps1 -Proxy http://127.0.0.1:7289
+
+# 同步后顺带推送 origin/master
+.\scripts\sync-upstream.ps1 -Proxy http://127.0.0.1:7289 -Push
+```
 
 ## 安装（群晖 / NAS Docker）
 
