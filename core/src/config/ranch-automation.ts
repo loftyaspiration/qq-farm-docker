@@ -18,6 +18,7 @@ export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_friend_mosquito: false,
     ranch_task: true,
     ranch_share: true,
+    ranch_daily_benefit: true,
     // [fnos-fork] 牧场巡查间隔改为秒级区间（与农场 farmMin/farmMax 同一套写法），运行时随机取值。
     ranch_check_seconds_min: 30,
     ranch_check_seconds_max: 60,

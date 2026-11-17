@@ -20,6 +20,7 @@ export interface AutomationConfig {
   ranch_friend_mosquito?: boolean
   ranch_task?: boolean
   ranch_share?: boolean
+  ranch_daily_benefit?: boolean
   ranch_check_seconds_min?: number
   ranch_check_seconds_max?: number
   ranch_strategy?: string

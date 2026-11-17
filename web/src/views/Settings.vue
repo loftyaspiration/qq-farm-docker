@@ -56,10 +56,13 @@ const nasUserStore = useNasUserStore()
 type SettingsTab = 'account' | 'strategy' | 'automation' | 'fnos-coop' | 'fnos-alt' | 'system' // [fnos-fork] 新增 fnos-coop（大小号协作）、fnos-alt（活动设置）
 const storedTab = localStorage.getItem('settings-active-tab')
 const settingsTabKeys: SettingsTab[] = ['account', 'strategy', 'automation', 'fnos-coop', 'fnos-alt', 'system'] // [fnos-fork]
+// 牧场的自动化与养殖策略已移到「牧场策略」页，牧场内设置页只保留账号、大小号协作、活动与系统。
+const ranchTabKeys: SettingsTab[] = ['account', 'fnos-coop', 'fnos-alt', 'system']
 const queryTab = String(route.query.tab || '')
-const initialTab = settingsTabKeys.includes(queryTab as SettingsTab)
+const storedInitialTab = settingsTabKeys.includes(queryTab as SettingsTab)
   ? queryTab as SettingsTab
   : storedTab === 'user' ? 'system' : (storedTab as SettingsTab) || 'account'
+const initialTab = inRanch.value && !ranchTabKeys.includes(storedInitialTab) ? 'account' : storedInitialTab
 const activeTab = ref<SettingsTab>(initialTab)
 
 watch(activeTab, (newTab) => {
@@ -73,6 +76,8 @@ watch(activeTab, (newTab) => {
 
 watch(() => route.query.tab, (value) => {
   const nextTab = String(value || '')
+  if (inRanch.value && !ranchTabKeys.includes(nextTab as SettingsTab))
+    return
   if (settingsTabKeys.includes(nextTab as SettingsTab) && nextTab !== activeTab.value)
     activeTab.value = nextTab as SettingsTab
 })
@@ -85,6 +90,8 @@ const tabs = [
   { key: 'fnos-alt', label: '活动设置', icon: 'i-carbon-event' }, // [fnos-fork]
   { key: 'system', label: '系统设置', icon: 'i-carbon-settings' },
 ] as const
+
+const visibleTabs = computed(() => inRanch.value ? tabs.filter(tab => ranchTabKeys.includes(tab.key)) : tabs)
 
 function setActiveTab(value: string) {
   if (tabs.some(tab => tab.key === value))
@@ -1518,7 +1525,7 @@ async function handleResetSystemConfig() {
   <div class="settings-page page-stack">
     <div class="settings-content">
       <PageTabs :value="activeTab" @update:value="setActiveTab">
-        <NTab v-for="tab in tabs" :key="tab.key" :name="tab.key">
+        <NTab v-for="tab in visibleTabs" :key="tab.key" :name="tab.key">
           <span class="inline-flex items-center gap-2">
             <span :class="tab.icon" />
             {{ tab.label }}
@@ -1987,29 +1994,6 @@ async function handleResetSystemConfig() {
               </BaseButton>
             </div>
           </div>
-        </div>
-
-        <div v-else-if="activeTab === 'strategy' && inRanch" class="space-y-4">
-          <h3 class="text-lg font-bold">
-            养殖策略
-          </h3>
-          <p v-if="settingsLoading">
-            加载中...
-          </p>
-          <p v-else-if="!currentAccountId || loadedAccountId !== currentAccountId">
-            请先选择并加载账号
-          </p>
-          <AutomationSettingsForm
-            v-else
-            v-model="localAutomationSettings"
-            in-ranch
-            panel="strategy"
-            :ranch-animal-options="ranchAnimalOptions"
-            :saving="automationSaving"
-            :fertilizer-land-type-options="fertilizerLandTypeOptions"
-            :fertilizer-options="fertilizerOptions"
-            @save="saveAutomationSettings"
-          />
         </div>
 
         <!-- 自动控制 -->
