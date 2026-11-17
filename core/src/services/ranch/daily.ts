@@ -11,11 +11,13 @@ const { prepareAction, operate } = require('./actions');
 const dailyShare = require('./daily-share');
 const { log } = require('../../utils/utils');
 const { getAutomation } = require('../../models/store');
+const { ranchCheckRangeSeconds } = require('../../config/ranch-automation');
 const gameDate = () => dailyShare.getState().dateKey;
 
 /** 失败后的重试间隔；每日任务完成进度随时变化，按较长间隔复查可领奖励，避免频繁切换场景。 */
 const RETRY_MS = 10 * 60 * 1000;
-const taskCheckMs = () => getAutomation().ranch_check_minutes * 60 * 1000;
+// [fnos-fork] 任务/礼包复查跟随牧场的秒级巡查区间上限。
+const taskCheckMs = () => ranchCheckRangeSeconds(getAutomation()).maxSec * 1000;
 
 interface RoutineState {
     dateKey: string;

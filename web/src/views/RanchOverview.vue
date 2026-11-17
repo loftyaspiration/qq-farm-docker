@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui/es/button'
 import { storeToRefs } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { BUCKETS, formatCount, formatDuration, formatHours, RANCH_IMAGE, useRanchClock, useRanchLoader, useRanchUnmountReset } from '@/components/ranch/ranch-shared'
 import RanchGate from '@/components/ranch/RanchGate.vue'
 import RunLogCard from '@/components/RunLogCard.vue'
@@ -88,6 +88,53 @@ function facilityMeter(f: any) {
     return { text: `牧草 ${f.feed.count} / ${f.capacity}`, percent: f.capacity ? f.feed.count / f.capacity * 100 : 0 }
   return { text: `容量 ${f.capacity}`, percent: 0 }
 }
+
+// [fnos-fork] 下次巡查倒计时：数据来自 Worker 的 status_sync.nextChecks，本地每秒递减。
+const ranchRemainSec = ref<number | null>(null)
+const ranchTaskRemainSec = ref<number | null>(null)
+
+function toRemainSec(value: unknown): number | null {
+  const number = Number(value)
+  if (!Number.isFinite(number))
+    return null
+  return number < 0 ? -1 : number
+}
+
+function syncCountdowns() {
+  const nextChecks: any = status.value?.nextChecks || {}
+  ranchRemainSec.value = toRemainSec(nextChecks.ranchRemainSec)
+  ranchTaskRemainSec.value = toRemainSec(nextChecks.ranchTaskRemainSec)
+}
+
+function tickCountdowns() {
+  for (const target of [ranchRemainSec, ranchTaskRemainSec]) {
+    if (target.value !== null && target.value > 0)
+      target.value--
+  }
+}
+
+function countdownText(seconds: number | null): string {
+  if (!isOnline.value)
+    return '账号未登录'
+  if (seconds === null)
+    return '--:--:--'
+  if (seconds < 0)
+    return '已完成'
+  return seconds > 0 ? formatDuration(seconds) : '巡查中...'
+}
+
+watch(() => status.value?.nextChecks, syncCountdowns, { immediate: true, deep: true })
+watch(isOnline, syncCountdowns)
+
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+onMounted(() => {
+  countdownTimer = setInterval(tickCountdowns, 1000)
+})
+onUnmounted(() => {
+  if (countdownTimer)
+    clearInterval(countdownTimer)
+  countdownTimer = null
+})
 </script>
 
 <template>
@@ -179,6 +226,33 @@ function facilityMeter(f: any) {
         <RunLogCard />
 
         <div class="min-w-0 flex flex-col gap-6 md:w-1/4">
+          <!-- [fnos-fork] 下次巡查倒计时：与农场概览同一套展示，牧场的巡查/任务节奏单独成卡 -->
+          <section class="farm-card rounded-2xl p-5">
+            <h3 class="mb-4 flex items-center gap-2 text-lg font-display font-medium">
+              <span class="i-carbon-time" /> <span>下次巡查倒计时</span>
+            </h3>
+            <div class="flex flex-col justify-center gap-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                  <span class="i-fa-solid-paw text-lg text-green-500" />
+                  <span>牧场</span>
+                </div>
+                <div class="text-lg tabular-nums font-bold">
+                  {{ countdownText(ranchRemainSec) }}
+                </div>
+              </div>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                  <span class="i-carbon-task text-lg text-blue-500" />
+                  <span>牧场任务</span>
+                </div>
+                <div class="text-lg tabular-nums font-bold">
+                  {{ countdownText(ranchTaskRemainSec) }}
+                </div>
+              </div>
+            </div>
+          </section>
+
           <!-- 待处理：对应农场的“今日统计” -->
           <section class="farm-card rounded-2xl p-5">
             <header class="ranch-card-head">

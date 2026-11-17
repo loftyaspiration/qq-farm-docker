@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { NButton } from 'naive-ui/es/button'
+import { NDropdown } from 'naive-ui/es/dropdown'
 import { storeToRefs } from 'pinia'
 import { computed } from 'vue'
 import { BUCKETS, formatCount, formatDuration, formatHours, RANCH_IMAGE, useRanchActions, useRanchClock, useRanchLoader } from '@/components/ranch/ranch-shared'
@@ -21,6 +22,15 @@ const hazards = computed(() => pens.value.reduce((sum, f) => sum + (f.ranch.haza
 
 const canProduce = computed(() => animals.value.some(({ animal }) => animal.canProduce))
 const canHarvest = computed(() => animals.value.some(({ animal }) => animal.canHarvest) || shelves.value.length > 0)
+const canFeed = computed(() => animals.value.some(({ animal }) => animal.canFeed))
+
+// [fnos-fork] 一键喂养：罐头库存按 7003 普通 / 7004 有机，库存为空时对应菜单禁用。
+const bucketSeconds = (id: number) => Number(state.value?.buckets?.find((bucket: any) => Number(bucket.id) === id)?.seconds) || 0
+const feedOptions = computed(() => [
+  { key: 2, label: '普通罐头喂养', disabled: !bucketSeconds(7003) },
+  { key: 1, label: '有机罐头喂养', disabled: !bucketSeconds(7004) },
+])
+const canOneKeyFeed = computed(() => canFeed.value && feedOptions.value.some(option => !option.disabled))
 
 const summary = computed(() => [
   { key: 'harvest', label: '可收获', icon: 'i-carbon-wheat text-amber-600 dark:text-amber-400', value: animals.value.filter(({ animal }) => animal.canHarvest).length },
@@ -56,6 +66,11 @@ function target(animal: any) {
             <NButton :disabled="disabled || !hazards" @click="request('clean')">
               <span class="i-carbon-clean" />一键清理
             </NButton>
+            <NDropdown class="ranch-action-slot" trigger="click" placement="bottom" :options="feedOptions" @select="(key: 1 | 2) => request('feed', { all: true, bucketType: key })">
+              <NButton :disabled="disabled || !canOneKeyFeed">
+                <span class="i-carbon-restaurant" />一键喂养
+              </NButton>
+            </NDropdown>
             <NButton :disabled="disabled || !canProduce" @click="request('produce', { all: true })">
               <span class="i-carbon-circle-dash" />一键生产
             </NButton>
@@ -152,6 +167,11 @@ function target(animal: any) {
 
 .ranch-actions :deep(.n-button__content) {
   gap: 4px;
+}
+
+/* 下拉包一层容器，桌面端跟随内容宽度，移动端网格里占满一格。 */
+.ranch-action-slot {
+  display: inline-flex;
 }
 
 .ranch-summary {
@@ -303,11 +323,25 @@ function target(animal: any) {
   .ranch-actions {
     display: grid;
     width: 100%;
-    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
   }
 
   .ranch-actions :deep(.n-button:not(.n-button--circle)) {
     padding-inline: 8px;
+  }
+
+  .ranch-action-slot {
+    display: block;
+    width: 100%;
+  }
+
+  .ranch-action-slot :deep(.n-button) {
+    width: 100%;
+  }
+
+  .ranch-actions :deep(.n-button--circle) {
+    grid-column: 1 / -1;
+    justify-self: center;
   }
 
   .ranch-grid {

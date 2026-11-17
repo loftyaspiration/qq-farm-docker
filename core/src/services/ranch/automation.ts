@@ -1,7 +1,7 @@
 import type { RanchAutomationConfig } from '../../config/ranch-automation';
 export {};
 
-const { RANCH_SWITCH_KEYS } = require('../../config/ranch-automation');
+const { RANCH_SWITCH_KEYS, ranchCheckRangeSeconds } = require('../../config/ranch-automation');
 const { getAutomation } = require('../../models/store');
 const { inScene, isUnlocked } = require('./transport');
 const { loadRaw, snapshot, inventory, catalog, balance } = require('./state');
@@ -52,11 +52,19 @@ function selectAnimal(goods: any[], settings: RanchAutomationConfig, kind: numbe
     return candidates.sort((a, b) => level(b) - level(a) || b.animal.id - a.animal.id)[0];
 }
 
+/** [fnos-fork] 本轮巡查间隔：按「最小/最大（秒）」随机取一个值，和农场巡查区间同一套写法。 */
+function patrolIntervalMs(auto: any): number {
+    const { minSec, maxSec } = ranchCheckRangeSeconds(auto);
+    if (maxSec === minSec) return minSec * 1000;
+    return (minSec + Math.floor(Math.random() * (maxSec - minSec + 1))) * 1000;
+}
+
 async function run(options: { farmDeadline?: () => number } = {}): Promise<void> {
     if (getRoutineState().doneToday) return;
     const auto: RanchAutomationConfig = getAutomation();
+    const intervalMs = patrolIntervalMs(auto);
     if (!cycleStartedAt) cycleStartedAt = Date.now();
-    nextCheckAt = cycleStartedAt + auto.ranch_check_minutes * 60_000;
+    nextCheckAt = cycleStartedAt + intervalMs;
     try {
         await inScene(async (cells: any) => {
             const startedAt = Date.now();
@@ -258,7 +266,8 @@ async function run(options: { farmDeadline?: () => number } = {}): Promise<void>
             if (cycleChanged) daily.markTasksChanged();
             await phase('tasks', async () => { if (enabled('ranch_task') && due(daily.getTaskRoutineState())) { checkpoint(); await daily.claimTasks(); steps++; } });
             await phase('share', async () => { if (enabled('ranch_share') && due(daily.getShareRoutineState())) { checkpoint(); await daily.claimShare(); steps++; } });
-            nextCheckAt = Math.max(Date.now() + SCENE_REENTRY_MS, Math.min(nextCheckAt, nextActionAt, cycleChanged ? Date.now() + 30_000 : Infinity));
+            // [fnos-fork] 进场保护：秒级间隔小于 20 秒时按实际间隔让路，避免被固定的 20 秒下限吃掉用户设置。
+            nextCheckAt = Math.max(Date.now() + Math.min(SCENE_REENTRY_MS, intervalMs), Math.min(nextCheckAt, nextActionAt, cycleChanged ? Date.now() + 30_000 : Infinity));
             resetCycle();
         });
     } catch (error: any) {
@@ -268,7 +277,8 @@ async function run(options: { farmDeadline?: () => number } = {}): Promise<void>
         }
         resetCycle();
         if (error.code === 'RANCH_AUTOMATION_DISABLED') return;
-        nextCheckAt = Date.now() + Math.max(auto.ranch_check_minutes, 10) * 60_000;
+        // 失败后至少隔 10 分钟再试，间隔设置本身更长时按设置走。
+        nextCheckAt = Date.now() + Math.max(intervalMs, 10 * 60_000);
         log('牧场', `日常牧场巡查失败：${error.message}`, { module: 'ranch', event: 'ranch_automation', result: 'error' });
     }
 }

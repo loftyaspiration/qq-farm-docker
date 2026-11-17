@@ -1333,6 +1333,12 @@ function syncStatus(force: boolean = false): void {
     const visitStrategy = require('../services/friend/visit-strategy');
     const friendQuiet = !!visitStrategy.inFriendQuietHours();
     const farmQuiet = !!visitStrategy.inFarmQuietHours();
+    // [fnos-fork] 牧场侧的下次巡查倒计时，供牧场概览页展示。
+    const ranchState = ranchAutomation.getRoutineState();
+    const ranchTaskState = require('../services/ranch/daily').getTaskRoutineState();
+    const remainSec = (at: any) => (Number(at) > 0 ? Math.max(0, Math.ceil((Number(at) - nowMs) / 1000)) : null);
+    const ranchRemain = ranchState.doneToday ? -1 : remainSec(ranchState.nextCheckAt);
+    const ranchTaskRemain = ranchTaskState.doneToday ? -1 : remainSec(ranchTaskState.nextCheckAt);
     fullStats.nextChecks = {
         farmRemainSec,
         helpRemainSec: friendRemainSec,
@@ -1342,6 +1348,8 @@ function syncStatus(force: boolean = false): void {
         friendQuiet,
         helpQuiet: friendQuiet,
         stealQuiet: friendQuiet,
+        ranchRemainSec: ranchRemain,
+        ranchTaskRemainSec: ranchTaskRemain,
     };
 
     fullStats.automation = getAutomation();

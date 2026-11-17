@@ -18,7 +18,9 @@ export const RANCH_AUTOMATION_DEFAULTS = {
     ranch_friend_mosquito: false,
     ranch_task: true,
     ranch_share: true,
-    ranch_check_minutes: 5,
+    // [fnos-fork] 牧场巡查间隔改为秒级区间（与农场 farmMin/farmMax 同一套写法），运行时随机取值。
+    ranch_check_seconds_min: 30,
+    ranch_check_seconds_max: 60,
     ranch_strategy: 'level' as 'level' | 'preferred' | 'bag_priority',
     ranch_bag_fallback: 'level' as 'level' | 'preferred',
     ranch_coop_animal: 0,
@@ -28,6 +30,18 @@ export const RANCH_AUTOMATION_DEFAULTS = {
 export type RanchAutomationConfig = typeof RANCH_AUTOMATION_DEFAULTS;
 export const RANCH_SWITCH_KEYS = Object.keys(RANCH_AUTOMATION_DEFAULTS).filter(key => typeof RANCH_AUTOMATION_DEFAULTS[key as keyof RanchAutomationConfig] === 'boolean');
 export const RANCH_ANIMAL_OPTIONS = animals.filter(animal => animal.enable_flag).map(animal => ({ value: animal.id, label: animal.name, kind: animal.husbandry_type }));
+
+/** [fnos-fork] 读到秒级巡查区间；非法或缺省时按默认值兜底，最小值大于最大值时自动交换。 */
+export function ranchCheckRangeSeconds(auto: any): { minSec: number; maxSec: number } {
+    const toSec = (value: unknown, fallback: number): number => {
+        const number = Number.parseInt(String(value ?? ''), 10);
+        return Number.isFinite(number) ? Math.max(5, Math.min(3600, number)) : fallback;
+    };
+    let minSec = toSec(auto?.ranch_check_seconds_min, RANCH_AUTOMATION_DEFAULTS.ranch_check_seconds_min);
+    let maxSec = toSec(auto?.ranch_check_seconds_max, RANCH_AUTOMATION_DEFAULTS.ranch_check_seconds_max);
+    if (minSec > maxSec) [minSec, maxSec] = [maxSec, minSec];
+    return { minSec, maxSec };
+}
 
 export function normalizeRanchSetting(key: string, value: unknown): boolean | number | string {
     if (key === 'ranch_strategy' || key === 'ranch_bag_fallback') {
@@ -42,10 +56,10 @@ export function normalizeRanchSetting(key: string, value: unknown): boolean | nu
         }
         return id;
     }
-    if (key === 'ranch_check_minutes') {
+    if (key === 'ranch_check_seconds_min' || key === 'ranch_check_seconds_max') {
         const number = Number(value);
-        if (!Number.isInteger(number) || number < 1 || number > 60) {
-            throw Object.assign(new Error('牧场巡查间隔必须是 1–60 的整数分钟'), { code: 'INVALID_CONFIG' });
+        if (!Number.isInteger(number) || number < 5 || number > 3600) {
+            throw Object.assign(new Error('牧场巡查间隔必须是 5–3600 的整数秒'), { code: 'INVALID_CONFIG' });
         }
         return number;
     }
