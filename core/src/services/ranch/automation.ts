@@ -184,6 +184,11 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                 const funds = balance(raw.bag, id);
                 return BigInt(funds.total) - BigInt(funds.locked) - BigInt(reservations.forCurrentAccount().reserved(`item:${id}`));
             };
+            // 牧草的 is_locked 只表示“不可出售”，不影响喂食；判断可用量时只扣我们自己的预留。
+            const grazeable = () => {
+                const funds = balance(raw.bag, 7001);
+                return BigInt(funds.total) - BigInt(reservations.forCurrentAccount().reserved('item:7001'));
+            };
             const affordable = (good: any, wanted: number) => {
                 const money = available(good.price.id);
                 const count = money > 0n ? money / BigInt(good.price.count) : 0n;
@@ -363,7 +368,7 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                         const id = quantity(original.instance_id);
                         let room = original.capacity - original.feed_machine.feed_count;
                         if (room <= 0 || original.feed_machine.feed_count * 100 >= original.capacity * auto.ranch_grass_threshold_percent) continue;
-                        let stock = Math.max(0, Number(available(7001)));
+                        let stock = Math.max(0, Number(grazeable()));
                         if (stock < room && enabled('ranch_grass_buy')) {
                             const shop = await catalog(raw, 6);
                             const good = shop.goods.find((g: any) => g.available && g.reward.id === 7001 && g.reward.count === '1' && g.price.id === 1007 && BigInt(g.price.count) > 0n);
@@ -375,11 +380,11 @@ async function run(options: { farmDeadline?: () => number; canContinue?: () => b
                                     if (good.remaining !== null) good.remaining -= count;
                                     const current = raw.cells.facilities.find((f: any) => quantity(f.instance_id) === id);
                                     room = current.capacity - current.feed_machine.feed_count;
-                                    stock = Math.max(0, Number(available(7001)));
+                                    stock = Math.max(0, Number(grazeable()));
                                 }
                             }
                         }
-                        const count = Math.min(room, Number(available(7001)));
+                        const count = Math.min(room, Number(grazeable()));
                         if (count > 0) await act('ranch_grass', 'addGrass', { facilityId: id, count });
                     }
                 }
