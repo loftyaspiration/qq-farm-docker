@@ -101,10 +101,10 @@ const ranchStrategies = [
               <BaseInput v-model.number="settings.automation.ranch_grass_threshold_percent" class="w-full" label="牧草余量低于（%）时补满" type="number" min="1" max="100" step="1" :disabled="!settings.automation.ranch_grass" />
             </div>
             <div class="automation-setting-item">
-              <BaseInput v-model.number="settings.automation.ranch_check_seconds_min" class="w-full" label="巡查间隔最小（秒）" type="number" min="5" max="3600" step="1" />
+              <BaseInput v-model.number="settings.automation.ranch_check_seconds_min" class="w-full" label="巡查间隔最小（秒）" type="number" min="1" max="3600" step="1" />
             </div>
             <div class="automation-setting-item">
-              <BaseInput v-model.number="settings.automation.ranch_check_seconds_max" class="w-full" label="巡查间隔最大（秒）" type="number" min="5" max="3600" step="1" />
+              <BaseInput v-model.number="settings.automation.ranch_check_seconds_max" class="w-full" label="巡查间隔最大（秒）" type="number" min="1" max="3600" step="1" />
             </div>
           </div>
           <div v-if="panel === 'automation'" class="mt-4">

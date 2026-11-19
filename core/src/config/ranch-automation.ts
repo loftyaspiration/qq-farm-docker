@@ -40,7 +40,7 @@ export const RANCH_ANIMAL_OPTIONS = [...animalMap.values()].filter(animal => ani
 export function ranchCheckRangeSeconds(auto: any): { minSec: number; maxSec: number } {
     const toSec = (value: unknown, fallback: number): number => {
         const number = Number.parseInt(String(value ?? ''), 10);
-        return Number.isFinite(number) ? Math.max(5, Math.min(3600, number)) : fallback;
+        return Number.isFinite(number) ? Math.max(1, Math.min(3600, number)) : fallback;
     };
     let minSec = toSec(auto?.ranch_check_seconds_min, RANCH_AUTOMATION_DEFAULTS.ranch_check_seconds_min);
     let maxSec = toSec(auto?.ranch_check_seconds_max, RANCH_AUTOMATION_DEFAULTS.ranch_check_seconds_max);
@@ -70,8 +70,8 @@ export function normalizeRanchSetting(key: string, value: unknown): boolean | nu
     }
     if (key === 'ranch_check_seconds_min' || key === 'ranch_check_seconds_max') {
         const number = Number(value);
-        if (!Number.isInteger(number) || number < 5 || number > 3600) {
-            throw Object.assign(new Error('牧场巡查间隔必须是 5–3600 的整数秒'), { code: 'INVALID_CONFIG' });
+        if (!Number.isInteger(number) || number < 1 || number > 3600) {
+            throw Object.assign(new Error('牧场巡查间隔必须是 1–3600 的整数秒'), { code: 'INVALID_CONFIG' });
         }
         return number;
     }
