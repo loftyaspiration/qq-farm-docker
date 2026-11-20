@@ -46,7 +46,9 @@ function forCurrentAccount() {
         for (const cost of plan.costs) {
             const balance = plan.balances.find((row: any) => row.resourceKey === cost.resourceKey);
             if (!balance || balance.state !== 'known') throw error('RANCH_BALANCE_UNKNOWN', '牧场资源余额未确认');
-            if (BigInt(balance.total) - BigInt(balance.locked) - BigInt(reserved(cost.resourceKey)) < BigInt(cost.amount)) {
+            // 牧草的锁定只防误卖，不限制喂食，预留校验不扣这部分。
+            const locked = cost.resourceKey === 'item:7001' ? 0n : BigInt(balance.locked);
+            if (BigInt(balance.total) - locked - BigInt(reserved(cost.resourceKey)) < BigInt(cost.amount)) {
                 throw error('RESERVE_PROTECTED', '扣除待核对操作的预留资源后余额不足');
             }
         }

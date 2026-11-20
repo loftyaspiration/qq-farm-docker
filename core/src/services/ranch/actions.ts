@@ -250,7 +250,9 @@ async function planAction(action: string, input: any, raw: any): Promise<any> {
     plan.balances = [];
     for (const item of plan.costItems) plan.balances.push(await resourceBalance(raw, item.id));
     for (let index = 0; index < plan.costs.length; index++) {
-        const available = BigInt(plan.balances[index].total) - BigInt(plan.balances[index].locked);
+        // 牧草的锁定只防误卖，不限制喂食，余额校验不扣这部分。
+        const locked = Number(plan.costItems[index].id) === 7001 ? 0n : BigInt(plan.balances[index].locked);
+        const available = BigInt(plan.balances[index].total) - locked;
         if (available < BigInt(plan.costs[index].amount)) throw error('INSUFFICIENT_BALANCE', `${plan.costItems[index].name}不足`);
     }
     plan.signature = JSON.stringify({ action, payload: plan.payload, costs: plan.costs, rewards: plan.expectedRewards, marker: plan.marker });
