@@ -263,7 +263,7 @@ function selectAccount(acc: any) {
 
 // 飞牛改动：侧栏左下角显示「fpk v<发布版本>」（构建时由 FPK_VERSION 注入）；本地开发显示「fpk dev」。Core 仍用上游 /api/ping 的 version。
 const fpkVersionText = __FPK_VERSION__ ? `fpk v${__FPK_VERSION__}` : 'fpk dev'
-const FNOS_REPO_URL = 'https://github.com/Maksim-venus/qq-farm-bot-fnos'
+const FNOS_REPO_URL = 'https://github.com/loftyaspiration/qq-farm-docker'
 
 watch(
   () => route.path,
